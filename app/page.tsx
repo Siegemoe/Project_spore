@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+import Link from "next/link";
+import type { Route } from "next";
 import { useState } from "react";
 
 export default function LandingPage() {
@@ -99,8 +100,8 @@ export default function LandingPage() {
         </form>
 
         <div className="flex items-center gap-2">
-          <a href="/auth/signup" className="btn btn-outline">Sign Up</a>
-          <a href="/auth/signin" className="btn btn-outline">Login</a>
+          <Link href={"/auth/signup" as Route} className="btn btn-outline">Sign Up</Link>
+          <Link href={"/auth/signin" as Route} className="btn btn-outline">Login</Link>
         </div>
       </section>
 

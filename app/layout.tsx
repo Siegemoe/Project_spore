@@ -1,6 +1,7 @@
-import type { Metadata } from "next";
+import type { Metadata, Route } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
+import Link from "next/link";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -19,8 +20,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="text-xl font-semibold tracking-tight">Spore</span>
           </div>
           <nav className="flex items-center gap-2">
-            <a href="/auth/signin" className="btn btn-outline">Login</a>
-            <a href="/auth/signup" className="btn btn-accent">Sign Up</a>
+            <Link href={"/auth/signin" as Route} className="btn btn-outline">Login</Link>
+            <Link href={"/auth/signup" as Route} className="btn btn-accent">Sign Up</Link>
           </nav>
         </header>
         <main className="container py-10">{children}</main>
