@@ -1,0 +1,52 @@
+/* Tailwind base layers */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand tokens */
+:root {
+  --accent: 0 208 132; /* rgb for #00D084 placeholder; adjust after sampling Image_1 */
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  @apply bg-white text-black antialiased;
+}
+
+/* Borderless, light look */
+.card {
+  @apply bg-white shadow-sm rounded-xl;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition-colors;
+}
+
+.btn-accent {
+  @apply bg-[rgb(var(--accent))] text-white hover:opacity-90;
+}
+
+.btn-outline {
+  @apply border border-neutral-200 hover:bg-neutral-50;
+}
+
+/* Navbar */
+.nav {
+  @apply w-full flex items-center justify-between py-4;
+}
+
+.container {
+  @apply mx-auto px-4 sm:px-6 lg:px-8;
+}
+
+/* Hero */
+.hero-title {
+  @apply text-3xl sm:text-5xl font-semibold leading-tight tracking-tight;
+}
+
+.hero-subtitle {
+  @apply text-base sm:text-lg text-neutral-600 mt-4;
+}

@@ -1,0 +1,78 @@
+openapi: 3.0.3
+info:
+  title: Spore API (Phase 0)
+  version: 0.0.1
+  description: Minimal contract-first spec for Phase 0 endpoints.
+servers:
+  - url: http://localhost:3000
+    description: Local dev
+  - url: https://project-spore.vercel.app
+    description: Production
+paths:
+  /api/waitlist:
+    post:
+      summary: Join waitlist
+      description: Collects email (required), optional handle, and a flag for MCP publishing interest.
+      operationId: joinWaitlist
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                email:
+                  type: string
+                  format: email
+                handle:
+                  type: string
+                  description: Optional handle (e.g. @name). May be null/omitted.
+                publishMcp:
+                  type: boolean
+                  default: true
+              required: [email]
+            examples:
+              example1:
+                value:
+                  email: "dev@example.com"
+                  handle: "vibecoder"
+                  publishMcp: true
+      responses:
+        "201":
+          description: Waitlist entry created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: { type: boolean }
+                  id: { type: string, format: uuid }
+                  created_at: { type: string, format: date-time }
+        "400":
+          description: Invalid request payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: Duplicate email/handle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          description: Server error or configuration issue
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+components:
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        details:
+          type: string
