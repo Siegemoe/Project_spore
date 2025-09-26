@@ -1,0 +1,42 @@
+name: Migrate Supabase (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply migrations to Supabase (type YES to continue)"
+        required: true
+        default: "NO"
+
+jobs:
+  migrate:
+    if: ${{ github.event.inputs.apply == 'YES' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install psql client
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y postgresql-client
+
+      - name: Verify migration files
+        run: |
+          ls -la supabase/migrations || true
+
+      - name: Apply migrations to Supabase
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "SUPABASE_DB_URL secret is not set. Add it in GitHub → Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          set -euo pipefail
+          shopt -s nullglob
+          for f in $(ls -1 supabase/migrations/*.sql | sort); do
+            echo "==> Applying $f"
+            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+          done
+          echo "All migrations applied successfully."
