@@ -70,16 +70,21 @@ export async function POST() {
       return NextResponse.json({ error: upErr.message }, { status: 500 });
     }
 
-    // 4) Upsert git_accounts if we can read a GitHub username
-    const ghLogin = meta.user_name || meta.preferred_username || meta.username || null;
+    // 4) Upsert git_accounts. Fall back to the chosen handle if auth metadata lacks a GitHub username.
+    let ghLogin = (meta.user_name || meta.preferred_username || meta.username || null) as string | null;
+    if (!ghLogin && handle) {
+      ghLogin = handle;
+    }
     if (ghLogin) {
-      const { error: ghErr } = await admin.from("git_accounts").upsert(
-        {
-          user_id: user.id,
-          github_login: ghLogin,
-        },
-        { onConflict: "user_id" }
-      );
+      const { error: ghErr } = await admin
+        .from("git_accounts")
+        .upsert(
+          {
+            user_id: user.id,
+            github_login: ghLogin,
+          },
+          { onConflict: "user_id" }
+        );
       if (ghErr) {
         // Non-fatal; continue
       }
