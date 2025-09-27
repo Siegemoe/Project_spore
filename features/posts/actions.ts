@@ -103,11 +103,31 @@ export async function listFeed(input: z.infer<typeof FeedQuery> & { userId?: str
 
   // Placeholder: newest first, simple page without personalization.
   const admin = getSupabaseAdmin();
+
+  // M3: personalize feed to self + followees when viewer is provided
+  let allowedAuthors: string[] | null = null;
+  if (input.userId) {
+    const viewerId = input.userId;
+    const { data: followees, error: fErr } = await admin
+      .from("follows")
+      .select("followee_id")
+      .eq("follower_id", viewerId);
+
+    if (fErr) {
+      throw new Error(`Failed to fetch followees: ${fErr.message}`);
+    }
+    allowedAuthors = [viewerId, ...(followees?.map((f: any) => f.followee_id) ?? [])];
+  }
+
   let query = admin
     .from("posts")
     .select("id,user_id,caption,media_url,media_type,created_at", { count: "exact" })
     .order("created_at", { ascending: false })
     .limit(parsed.limit);
+
+  if (allowedAuthors && allowedAuthors.length > 0) {
+    query = query.in("user_id", allowedAuthors);
+  }
 
   if (parsed.cursor) {
     // Simple cursor by created_at cutoff; a stable (created_at,id) pair can be added later.
