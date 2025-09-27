@@ -127,7 +127,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   }
 
   if (!user) {
-    // 3) Final safety: if the viewer is authenticated, load by their user id and redirect to canonical /u/{handle}
+    // 3) Final safety: if the viewer is authenticated, load by their user id
     const supa = getServerSupabase();
     const {
       data: { user: sessionUser },
@@ -145,23 +145,39 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
         if (!me.handle) {
           const desired = handle.toLowerCase().replace(/[^a-z0-9_-]/g, "");
           let newHandle = desired || `user-${String(sessionUser.id).slice(0, 6)}`;
-          const { data: exists } = await admin.from("users").select("id").ilike("handle", newHandle).limit(1);
+          const { data: exists } = await admin
+            .from("users")
+            .select("id")
+            .ilike("handle", newHandle)
+            .limit(1);
           if (exists && exists.length > 0) {
             newHandle = `${newHandle}-${String(sessionUser.id).slice(0, 4)}`;
           }
-          await admin.from("users").update({ handle: newHandle, is_public: true }).eq("id", sessionUser.id);
+          await admin
+            .from("users")
+            .update({ handle: newHandle, is_public: true })
+            .eq("id", sessionUser.id);
+          // Redirect to the canonical path we just created
           return redirect(`/u/${newHandle}`);
         }
-        // If handle exists, redirect to canonical route
-        return redirect(`/u/${me.handle}`);
+
+        // If we are already on the canonical handle (case-insensitive), render with this user instead of redirecting
+        if (me.handle && me.handle.toLowerCase() === handle.toLowerCase()) {
+          user = me;
+        } else {
+          // Otherwise, redirect to the canonical handle to normalize the URL
+          return redirect(`/u/${me.handle}`);
+        }
       }
     }
 
-    return (
-      <div className="container py-10">
-        <h1 className="text-xl font-semibold">User not found</h1>
-      </div>
-    );
+    if (!user) {
+      return (
+        <div className="container py-10">
+          <h1 className="text-xl font-semibold">User not found</h1>
+        </div>
+      );
+    }
   }
 
   // 3) Counts and GitHub info
