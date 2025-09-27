@@ -147,6 +147,41 @@ export async function listFeed(input: z.infer<typeof FeedQuery> & { userId?: str
     throw new Error(`Failed to fetch feed: ${error.message}`);
   }
 
-  const nextCursor = data && data.length > 0 ? data[data.length - 1].id : undefined;
-  return { items: data ?? [], nextCursor };
+  // Enrich with user display fields for better PostCard headers (no breaking change: fields are optional)
+  const rows = data ?? [];
+  const userIds = Array.from(new Set(rows.map((r: any) => r.user_id))).filter(Boolean) as string[];
+
+  let usersById: Record<string, { handle: string | null; display_name: string | null; avatar_url: string | null }> = {};
+  if (userIds.length > 0) {
+    const { data: users, error: uErr } = await admin
+      .from("users")
+      .select("id, handle, display_name, avatar_url")
+      .in("id", userIds);
+
+    if (uErr) {
+      // Non-fatal — return posts without user enrichment
+      usersById = {};
+    } else {
+      for (const u of users ?? []) {
+        usersById[u.id as string] = {
+          handle: (u as any).handle ?? null,
+          display_name: (u as any).display_name ?? null,
+          avatar_url: (u as any).avatar_url ?? null,
+        };
+      }
+    }
+  }
+
+  const enriched = rows.map((r: any) => {
+    const u = usersById[r.user_id] || {};
+    return {
+      ...r,
+      handle: u.handle ?? null,
+      display_name: u.display_name ?? null,
+      avatar_url: u.avatar_url ?? null,
+    };
+  });
+
+  const nextCursor = rows.length > 0 ? rows[rows.length - 1].id : undefined;
+  return { items: enriched, nextCursor };
 }

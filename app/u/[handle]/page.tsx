@@ -1,9 +1,9 @@
 export const dynamic = "force-dynamic";
 
 import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
-import FollowButton from "@/components/follows/FollowButton";
-import ConnectButton from "@/components/github/ConnectButton";
 import { fetchPublicRepos } from "@/features/github/actions";
+import { ProfileHeader } from "@/components/profile/ProfileHeader";
+import { ProfileTabs } from "@/components/profile/ProfileTabs";
 
 type PageProps = {
   params: { handle: string };
@@ -97,69 +97,31 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
 
   return (
     <div className="container py-10 space-y-6 max-w-3xl">
-      <header className="card p-4 sm:p-6 flex items-start gap-4">
-        {/* Avatar placeholder */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={user.avatar_url || "https://placehold.co/80x80?text=@"}
-          alt={user.handle || ""}
-          className="h-20 w-20 rounded-full border border-neutral-200 bg-neutral-100 object-cover"
-        />
-        <div className="flex-1">
-          <h1 className="text-2xl font-semibold">
-            {user.display_name || user.handle}
-          </h1>
-          <p className="text-neutral-500">@{user.handle}</p>
-          {user.bio && <p className="mt-2 text-[15px] leading-relaxed">{user.bio}</p>}
-          <div className="mt-3 flex items-center gap-4 text-sm text-neutral-600">
-            <span>
-              <strong>{counts.followers}</strong> followers
-            </span>
-            <span>
-              <strong>{counts.following}</strong> following
-            </span>
+      <ProfileHeader
+        user={{
+          id: user.id,
+          handle: user.handle,
+          display_name: user.display_name,
+          avatar_url: user.avatar_url,
+          bio: user.bio
+        }}
+        counts={counts}
+        viewerId={viewerId}
+        initialIsFollowing={initialIsFollowing}
+        hasGitAccount={Boolean(gitAccount)}
+      />
+
+      <ProfileTabs
+        repos={repos}
+        about={{ bio: user.bio ?? null }}
+        postsPlaceholder={
+          <div className="card p-4">
+            <p className="text-sm text-text-secondary">
+              User posts will appear here in a later milestone.
+            </p>
           </div>
-          {/* If viewer is profile owner and no git account, offer connect */}
-          {viewerId === user.id && !gitAccount && (
-            <div className="mt-3">
-              <ConnectButton />
-            </div>
-          )}
-        </div>
-
-        <FollowButton
-          followerId={viewerId}
-          followeeId={user.id}
-          initialIsFollowing={initialIsFollowing}
-        />
-      </header>
-
-      <section>
-        <h2 className="text-lg font-medium mb-2">GitHub Repos</h2>
-        {gitAccount?.github_login ? (
-          repos.length > 0 ? (
-            <ul className="space-y-2">
-              {repos.map((r) => (
-                <li key={r.fullName} className="text-sm">
-                  <a href={r.htmlUrl} target="_blank" rel="noreferrer" className="link">
-                    {r.fullName}
-                  </a>
-                  <span className="text-neutral-500"> — {r.visibility}</span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-neutral-500">No public repos found.</p>
-          )
-        ) : (
-          <p className="text-sm text-neutral-500">Not connected to GitHub.</p>
-        )}
-      </section>
-
-      <section className="mt-4">
-        <h2 className="text-lg font-medium mb-2">Posts</h2>
-        <p className="text-sm text-neutral-500">User posts will appear here in a later milestone.</p>
-      </section>
+        }
+      />
     </div>
   );
 }
