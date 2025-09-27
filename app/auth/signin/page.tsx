@@ -1,10 +1,30 @@
 "use client";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useEffect } from "react";
+import type { Route } from "next";
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  // If already authenticated, bounce to returnTo (or /u/me) immediately
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (data?.user) {
+          const rt = searchParams?.get("returnTo") ?? "/u/me";
+          const safePath = rt.startsWith("/") ? rt : `/${rt}`;
+          router.replace(safePath as Route);
+        }
+      } catch {
+        // ignore
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function signInWithGitHub() {
     const rt = searchParams?.get("returnTo") ?? "/";
