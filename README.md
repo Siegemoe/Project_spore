@@ -122,3 +122,59 @@ Next (Stage 1 preview):
 - Feed, post composer, follows, comments
 - Media upload (Supabase Storage)
 - Realtime updates
+
+---
+
+## Phase 1 — M5: GitHub Connect Setup
+
+This project uses Supabase Auth to handle the GitHub OAuth handshake. You do not need to craft GitHub URLs manually — the app calls `supabase.auth.signInWithOAuth({ provider: "github" })` which uses the GitHub Client ID/Secret configured in Supabase.
+
+### 1) Create/Configure GitHub OAuth App
+
+- Go to GitHub → Settings → Developer Settings → OAuth Apps
+- Create an OAuth App (or edit existing)
+  - Authorization callback URL:
+    ```
+    https://aehiqptugvakjtlvuixb.supabase.co/auth/v1/callback
+    ```
+- Copy the “Client ID” and “Client Secret”
+
+> Do NOT commit these to the repo. You will paste them into Supabase Provider settings.
+
+### 2) Configure Supabase Provider (GitHub)
+
+- Supabase Dashboard → Authentication → Providers → GitHub
+  - Enable GitHub provider
+  - Paste your GitHub OAuth “Client ID” and “Client Secret”
+  - Save
+
+### 3) Supabase URL Settings
+
+- Supabase Dashboard → Authentication → URL Configuration:
+  - Site URL: your deployed app URL (e.g., `https://project-spore.vercel.app`)
+  - Additional redirect URLs: include `http://localhost:3000` for local development
+
+### 4) Vercel Environment
+
+Set the following in Vercel project environment (Production/Preview/Development as appropriate):
+```
+NEXT_PUBLIC_SUPABASE_URL=https://aehiqptugvakjtlvuixb.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+NEXT_PUBLIC_APP_URL=https://project-spore.vercel.app
+# Server-only (not exposed to client)
+SUPABASE_SERVICE_ROLE=YOUR_SERVICE_ROLE
+```
+Redeploy after updating env.
+
+### 5) Test Flow
+
+- Go to `/auth/signin` and click “Continue with GitHub”
+- After GitHub → Supabase callback, you’ll be redirected (default to `/dev/profiles`)
+- On your profile page `/u/[handle]`:
+  - If not already connected, click “Connect GitHub”
+  - After connecting, top public repos will display
+
+### Notes
+
+- Phase 1 scope lists public repositories without requesting additional token scopes. Private repos can be added later with appropriate scopes.
+- The app never stores your GitHub Client ID/Secret in this repo. They live in Supabase provider settings.
