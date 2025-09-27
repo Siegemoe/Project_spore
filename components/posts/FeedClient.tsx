@@ -22,9 +22,22 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
   const [items, setItems] = useState<FeedItem[]>(initialItems);
   const [cursor, setCursor] = useState<string | undefined>(initialNextCursor);
   const [loading, setLoading] = useState(false);
+  const [viewerId, setViewerId] = useState<string | undefined>(undefined);
 
   // Realtime prepend on INSERT
   useEffect(() => {
+    // detect viewer (auth) if available
+    let cancelled = false;
+    async function loadUser() {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!cancelled) setViewerId(data.user?.id);
+      } catch {
+        // ignore
+      }
+    }
+    loadUser();
+
     const channel = supabase
       .channel("posts-insert")
       .on(
@@ -37,6 +50,7 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
       )
       .subscribe();
     return () => {
+      cancelled = true;
       supabase.removeChannel(channel);
     };
   }, []);
@@ -45,7 +59,11 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
     if (!cursor) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/feed?cursor=${encodeURIComponent(cursor)}&limit=20`);
+      const qs = new URLSearchParams();
+      qs.set("cursor", cursor);
+      qs.set("limit", "20");
+      if (viewerId) qs.set("viewer", viewerId);
+      const res = await fetch(`/api/feed?${qs.toString()}`);
       if (!res.ok) throw new Error("Failed to load more");
       const data = await res.json();
       setItems((prev) => [...prev, ...(data.items as FeedItem[])]);

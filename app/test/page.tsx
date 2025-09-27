@@ -27,7 +27,7 @@ export default async function TestFeedPage() {
   return (
     <div className="container py-10 space-y-6">
       <h1 className="text-2xl font-semibold">Spore Test Feed</h1>
-      <Composer userId={TEMP_USER_ID} onPosted={undefined} />
+      <Composer onPosted={undefined} />
       <FeedClient initialItems={items} initialNextCursor={nextCursor} />
     </div>
   );

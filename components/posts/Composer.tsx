@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { MEDIA_BUCKET, ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MAX_UPLOAD_BYTES } from "@/lib/config";
 import { getUploadTarget, createPost } from "@/features/posts/actions";
@@ -11,7 +11,7 @@ import type { Route } from "next";
  * In Stage 1 we will derive userId from the server session and drop this prop.
  */
 type ComposerProps = {
-  userId: string;
+  userId?: string; // optional; auto-detect via Supabase auth when not provided
   onPosted?: () => void;
 };
 
@@ -23,6 +23,27 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const [viewerId, setViewerId] = useState<string | undefined>(userId);
+
+  // Auto-detect viewer from Supabase auth if not provided
+  useEffect(() => {
+    let cancelled = false;
+    async function loadUser() {
+      if (viewerId) return;
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (!cancelled) {
+          setViewerId(data.user?.id);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    loadUser();
+    return () => {
+      cancelled = true;
+    };
+  }, [viewerId]);
 
   const contentType = useMemo(() => file?.type ?? "", [file]);
   const mediaType = useMemo<"image" | "video" | null>(() => {
@@ -60,7 +81,7 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
-    if (!userId) {
+    if (!viewerId) {
       setNote("Not signed in.");
       return;
     }
@@ -79,7 +100,7 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
 
       // 1) Ask server for upload target (objectPath)
       const target = await getUploadTarget({
-        userId,
+        userId: viewerId,
         mediaType,
         contentType,
         size: file.size,
@@ -93,7 +114,7 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
 
       // 3) Create post row referencing the objectPath
       await createPost({
-        userId,
+        userId: viewerId,
         caption: caption.trim() || undefined,
         objectPath: target.objectPath,
         mediaType,
