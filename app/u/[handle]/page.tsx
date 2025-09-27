@@ -53,21 +53,65 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const admin = getSupabaseAdmin();
 
   const handle = decodeURIComponent(params.handle).replace(/^@/, "");
-  const { data: user, error } = await admin
+  const { data: userData, error } = await admin
     .from("users")
     .select("id, handle, display_name, avatar_url, bio, created_at")
     .ilike("handle", handle)
     .maybeSingle();
+  let user: any = userData;
 
   if (error) {
     throw new Error(error.message);
   }
   if (!user) {
-    return (
-      <div className="container py-10">
-        <h1 className="text-xl font-semibold">User not found</h1>
-      </div>
-    );
+    // Fallback: allow visiting /u/{github_login} even if users.handle is different or not yet created.
+    const { data: ga } = await admin
+      .from("git_accounts")
+      .select("user_id, github_login")
+      .ilike("github_login", handle)
+      .maybeSingle();
+
+    let userByGithub: any = null;
+    if (ga?.user_id) {
+      const { data: u2 } = await admin
+        .from("users")
+        .select("id, handle, display_name, avatar_url, bio, created_at")
+        .eq("id", ga.user_id)
+        .maybeSingle();
+      userByGithub = u2 ?? null;
+
+      // If a user exists but has no handle, set it now for stable URLs
+      if (userByGithub && !userByGithub.handle) {
+        const desired = handle.toLowerCase().replace(/[^a-z0-9_-]/g, "");
+        let newHandle = desired || `user-${String(ga.user_id).slice(0, 6)}`;
+        const { data: exists } = await admin.from("users").select("id").ilike("handle", newHandle).limit(1);
+        if (exists && exists.length > 0) {
+          newHandle = `${newHandle}-${String(ga.user_id).slice(0, 4)}`;
+        }
+        await admin
+          .from("users")
+          .update({ handle: newHandle, is_public: true })
+          .eq("id", ga.user_id);
+        // Refresh
+        const { data: refreshed } = await admin
+          .from("users")
+          .select("id, handle, display_name, avatar_url, bio, created_at")
+          .eq("id", ga.user_id)
+          .maybeSingle();
+        userByGithub = refreshed ?? userByGithub;
+      }
+    }
+
+    if (!userByGithub) {
+      return (
+        <div className="container py-10">
+          <h1 className="text-xl font-semibold">User not found</h1>
+        </div>
+      );
+    }
+
+    // Rebind "user" to fallback result
+    user = userByGithub;
   }
 
   const counts = await getCounts(user.id);
