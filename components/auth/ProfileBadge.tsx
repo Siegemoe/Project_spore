@@ -123,12 +123,23 @@ export function ProfileBadge() {
           <button
             role="menuitem"
             className="w-full rounded-md px-3 py-2 text-left text-sm text-text-secondary hover:bg-[rgb(var(--surface-muted))]"
-            onClick={() => {
-              // Placeholder until sign-out sequence is implemented
+            onClick={async () => {
               setOpen(false);
+              try {
+                // Client sign out clears local storage; server endpoint clears SSR cookies
+                await (supabase as any).auth.signOut?.();
+                await fetch("/api/auth/signout", { method: "POST" });
+              } finally {
+                // Send user to sign-in, preserving current path for easy return
+                const rt =
+                  typeof window !== "undefined"
+                    ? `${window.location.pathname}${window.location.search || ""}`
+                    : "/";
+                window.location.href = `/auth/signin?returnTo=${encodeURIComponent(rt)}`;
+              }
             }}
           >
-            Log Out (placeholder)
+            Log Out
           </button>
         </div>
       ) : null}
