@@ -27,3 +27,12 @@ export function contentTypeToExt(contentType: string): string {
       return "bin";
   }
 }
+
+/**
+ * Feature flags
+ * Use NEXT_PUBLIC_ env to allow client components to read at build time.
+ * Example: NEXT_PUBLIC_NEW_MOBILE_UI=true
+ */
+export const NEW_MOBILE_UI: boolean =
+  process.env.NEXT_PUBLIC_NEW_MOBILE_UI === "true" ||
+  process.env.NEXT_PUBLIC_NEW_MOBILE_UI === "1";

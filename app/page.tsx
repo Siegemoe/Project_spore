@@ -108,7 +108,14 @@ export default function LandingPage() {
       </section>
 
       <section className="relative aspect-[4/3] w-full">
-        <Image src={Hero} alt="Spore mascot" fill className="object-contain rounded-2xl border border-neutral-200 bg-neutral-50" priority />
+        <Image
+          src={Hero}
+          alt="Spore mascot"
+          fill
+          sizes="(max-width: 768px) 100vw, 50vw"
+          className="object-contain rounded-2xl border border-neutral-200 bg-neutral-50"
+          priority
+        />
       </section>
     </div>
   );
