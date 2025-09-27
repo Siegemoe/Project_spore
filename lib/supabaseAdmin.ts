@@ -5,6 +5,10 @@ import { createClient } from "@supabase/supabase-js";
  * We avoid initializing at import time so that Next build does not throw
  * when env vars are not present on the build machine.
  */
+export function hasSupabaseAdminEnv() {
+  return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE);
+}
+
 export function getSupabaseAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE;

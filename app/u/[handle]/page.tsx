@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
 import FollowButton from "@/components/follows/FollowButton";
 
 type PageProps = {
@@ -25,6 +25,28 @@ async function getCounts(userId: string) {
 }
 
 export default async function ProfilePage({ params, searchParams }: PageProps) {
+  if (!hasSupabaseAdminEnv()) {
+    const handle = decodeURIComponent(params.handle).replace(/^@/, "");
+    return (
+      <div className="container py-10">
+        <h1 className="text-xl font-semibold">Profile</h1>
+        <p className="text-sm text-neutral-600 mt-2">
+          Supabase environment variables are not set in this environment, so profile data cannot be loaded.
+        </p>
+        <p className="text-sm text-neutral-600">
+          If you are running locally, set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE, then refresh.
+        </p>
+        <p className="text-sm text-neutral-600 mt-4">
+          You can still navigate to known profiles:
+        </p>
+        <ul className="list-disc list-inside text-sm mt-1">
+          <li><a className="link" href="/u/alice">/u/alice</a></li>
+          <li><a className="link" href="/u/bob">/u/bob</a></li>
+        </ul>
+      </div>
+    );
+  }
+
   const admin = getSupabaseAdmin();
 
   const handle = decodeURIComponent(params.handle).replace(/^@/, "");
