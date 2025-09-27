@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getServerSupabase } from "@/lib/supabaseServer";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 /**
  * Server-side resolver for "current user's profile".
@@ -45,8 +46,11 @@ export async function GET(req: Request) {
     const base = (gh || `user-${user.id.slice(0, 6)}`).toLowerCase().replace(/[^a-z0-9_-]/g, "");
     handle = base || `user-${user.id.slice(0, 6)}`;
 
+    // Use admin client to bypass RLS for initial creation
+    const admin = getSupabaseAdmin();
+
     // Ensure uniqueness: if handle exists, suffix with short id
-    const { data: exists } = await supabase
+    const { data: exists } = await admin
       .from("users")
       .select("id")
       .ilike("handle", handle)
@@ -55,21 +59,20 @@ export async function GET(req: Request) {
       handle = `${handle}-${user.id.slice(0, 4)}`;
     }
 
-    // Upsert users row (RLS should allow inserting own row as authenticated user)
-    await supabase.from("users").upsert(
+    await admin.from("users").upsert(
       {
         id: user.id,
         handle,
         display_name: meta.name || gh || null,
         avatar_url: meta.avatar_url || null,
         bio: null,
+        is_public: true,
       },
       { onConflict: "id" }
     );
 
-    // Also upsert git_accounts for GitHub badge if available
     if (gh) {
-      await supabase.from("git_accounts").upsert(
+      await admin.from("git_accounts").upsert(
         {
           user_id: user.id,
           github_login: gh,
