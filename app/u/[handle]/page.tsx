@@ -2,8 +2,9 @@ export const dynamic = "force-dynamic";
 
 import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
 import { fetchPublicRepos } from "@/features/github/actions";
-import { ProfileHeader } from "@/components/profile/ProfileHeader";
+import { HeaderV2 } from "@/components/profile/HeaderV2";
 import { ProfileTabs } from "@/components/profile/ProfileTabs";
+import { StatsRow } from "@/components/profile/StatsRow";
 
 type PageProps = {
   params: { handle: string };
@@ -54,7 +55,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const handle = decodeURIComponent(params.handle).replace(/^@/, "");
   const { data: user, error } = await admin
     .from("users")
-    .select("id, handle, display_name, avatar_url, bio")
+    .select("id, handle, display_name, avatar_url, bio, created_at")
     .ilike("handle", handle)
     .maybeSingle();
 
@@ -95,30 +96,45 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
     initialIsFollowing = (exists.count ?? 0) > 0;
   }
 
+  // Compute display strings for stats
+  const createdAt = (user as any).created_at ? new Date((user as any).created_at as string) : null;
+  const ageText = createdAt
+    ? (() => {
+        const now = new Date();
+        let months = (now.getFullYear() - createdAt.getFullYear()) * 12 + (now.getMonth() - createdAt.getMonth());
+        if (months < 0) months = 0;
+        const years = Math.floor(months / 12);
+        const rem = months % 12;
+        return `${years}y ${rem}m`;
+      })()
+    : undefined;
+
+  const contributionsText = undefined; // TODO: posts + comments count endpoint (Phase 2 follow-up)
+
   return (
     <div className="container py-10 space-y-6 max-w-3xl">
-      <ProfileHeader
+      <HeaderV2
         user={{
           id: user.id,
-          handle: user.handle,
+          handle: user.handle!,
           display_name: user.display_name,
           avatar_url: user.avatar_url,
-          bio: user.bio
+          bio: user.bio,
+          created_at: (user as any).created_at ?? null,
         }}
         counts={counts}
         viewerId={viewerId}
-        initialIsFollowing={initialIsFollowing}
-        hasGitAccount={Boolean(gitAccount)}
+        reposCount={repos.length}
       />
+
+      <StatsRow reposCount={repos.length} contributionsText={contributionsText} accountAgeText={ageText} />
 
       <ProfileTabs
         repos={repos}
         about={{ bio: user.bio ?? null }}
         postsPlaceholder={
           <div className="card p-4">
-            <p className="text-sm text-text-secondary">
-              User posts will appear here in a later milestone.
-            </p>
+            <p className="text-sm text-text-secondary">User posts will appear here in a later milestone.</p>
           </div>
         }
       />
