@@ -143,6 +143,7 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
           type="file"
           accept={[...IMAGE_TYPES, ...VIDEO_TYPES].join(",")}
           onChange={onPick}
+          disabled={!viewerId || busy}
         />
         {previewUrl && mediaType === "image" && (
           // eslint-disable-next-line @next/next/no-img-element
@@ -172,18 +173,25 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
           placeholder="Say something…"
           value={caption}
           onChange={(e) => setCaption(e.target.value)}
+          disabled={!viewerId || busy}
         />
       </div>
 
       <div className="flex items-center gap-2">
         <button
           type="submit"
-          disabled={busy || !file || !mediaType}
+          disabled={busy || !file || !mediaType || !viewerId}
           className="btn btn-accent disabled:opacity-60"
         >
           {busy ? "Posting…" : "Post"}
         </button>
         {note && <span className="text-sm text-neutral-600">{note}</span>}
+        {!viewerId && (
+          <span className="text-sm text-neutral-600">
+            Sign in to post.{" "}
+            <a href="/auth/signin" className="link">Go to sign in</a>
+          </span>
+        )}
       </div>
 
       <p className="text-xs text-neutral-500">

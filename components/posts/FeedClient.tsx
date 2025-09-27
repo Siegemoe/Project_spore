@@ -77,6 +77,9 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
 
   return (
     <div className="space-y-4">
+      {items.length === 0 && (
+        <p className="text-sm text-neutral-500">No posts yet. Follow someone or share your first post.</p>
+      )}
       {items.map((it) => (
         <PostCard key={it.id} {...it} />
       ))}
