@@ -19,10 +19,14 @@ jobs:
         run: |
           echo "apply=${{ github.event.inputs.apply }}"
 
-      - name: Guard - require apply=YES
+      - name: Guard - require apply confirmation
+        shell: bash
         run: |
-          if [ "${{ github.event.inputs.apply }}" != "YES" ]; then
-            echo "::warning:: To run migrations, re-run this workflow and set 'apply' to YES."
+          APPLY_RAW="${{ github.event.inputs.apply }}"
+          APPLY="$(echo "$APPLY_RAW" | tr '[:upper:]' '[:lower:]' | xargs)"
+          echo "Normalized apply input: '$APPLY'"
+          if [ "$APPLY" != "yes" ] && [ "$APPLY" != "y" ] && [ "$APPLY" != "true" ] && [ "$APPLY" != "1" ]; then
+            echo "::warning:: To run migrations, re-run this workflow and set 'apply' to one of: YES | yes | y | true | 1"
             exit 1
           fi
 
