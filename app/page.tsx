@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import type { Route } from "next";
+import Image from "next/image";
+import Hero from "../Cline_Info/image.png";
 import { useState } from "react";
 
 export default function LandingPage() {
@@ -106,13 +108,7 @@ export default function LandingPage() {
       </section>
 
       <section className="relative aspect-[4/3] w-full">
-        {/* Placeholder mascot area; replace with public/mascot.png from Image_1 later */}
-        <div className="absolute inset-0 rounded-2xl bg-neutral-100 border border-neutral-200 grid place-items-center">
-          <div className="text-neutral-400 text-sm">Mascot / hero image</div>
-        </div>
-        {/* Example if mascot present:
-        <Image src="/mascot.png" alt="Spore mascot" fill className="object-contain" priority />
-        */}
+        <Image src={Hero} alt="Spore mascot" fill className="object-contain rounded-2xl border border-neutral-200 bg-neutral-50" priority />
       </section>
     </div>
   );
