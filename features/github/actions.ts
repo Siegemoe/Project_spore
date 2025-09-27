@@ -16,12 +16,15 @@ export async function fetchPublicRepos(login: string, limit = 10): Promise<Publi
     url.searchParams.set("per_page", String(limit));
     url.searchParams.set("sort", "updated");
     const res = await fetch(url.toString(), {
-      // Helpful headers for GitHub API
+      // Helpful headers for GitHub API (GitHub recommends setting a UA)
       headers: {
         Accept: "application/vnd.github+json",
+        "User-Agent": "Project-Spore/1.0 (+https://project-spore.vercel.app)",
       },
       // Run on server; ensure Next doesn't cache for long
       cache: "no-store",
+      // Be resilient to transient failures
+      next: { revalidate: 0 },
     });
 
     if (!res.ok) {
