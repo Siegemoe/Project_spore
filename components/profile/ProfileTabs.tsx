@@ -3,6 +3,7 @@
 import * as React from "react";
 import { RepoList } from "@/components/profile/RepoList";
 import PostsTab from "@/components/profile/PostsTab";
+import CommentsTab from "@/components/profile/CommentsTab";
 
 type About = {
   bio?: string | null;
@@ -28,7 +29,7 @@ export interface ProfileTabsProps {
   postsPlaceholder?: React.ReactNode;
 }
 
-const TabKeys = ["posts", "repos", "about"] as const;
+const TabKeys = ["posts", "comments", "repos", "about"] as const;
 type TabKey = typeof TabKeys[number];
 
 export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTabsProps) {
@@ -39,6 +40,9 @@ export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTa
       <div className="flex items-center gap-2">
         <TabButton active={tab === "posts"} onClick={() => setTab("posts")}>
           Posts
+        </TabButton>
+        <TabButton active={tab === "comments"} onClick={() => setTab("comments")}>
+          Comments
         </TabButton>
         <TabButton active={tab === "repos"} onClick={() => setTab("repos")}>
           Repos
@@ -63,6 +67,8 @@ export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTa
               </div>
             )
           )
+        ) : tab === "comments" ? (
+          posts ? <CommentsTab userId={posts.userId} /> : <div className="card p-4 text-sm text-text-secondary">No comments.</div>
         ) : tab === "repos" ? (
           <RepoList repos={repos} />
         ) : (
