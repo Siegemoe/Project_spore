@@ -13,7 +13,7 @@ export function TopBar() {
           <span className="text-lg font-semibold tracking-tight">Spore</span>
         </Link>
 
-        <div className="hidden gap-2 sm:flex">
+        <div className="flex gap-2">
           <ProfileBadge />
         </div>
       </div>
