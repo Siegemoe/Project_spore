@@ -2,6 +2,8 @@ export const dynamic = "force-dynamic";
 
 import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
 import FollowButton from "@/components/follows/FollowButton";
+import ConnectButton from "@/components/github/ConnectButton";
+import { fetchPublicRepos } from "@/features/github/actions";
 
 type PageProps = {
   params: { handle: string };
@@ -69,6 +71,17 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
 
   const counts = await getCounts(user.id);
 
+  // GitHub connect state
+  const { data: gitAccount } = await admin
+    .from("git_accounts")
+    .select("github_login")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  const repos = gitAccount?.github_login
+    ? await fetchPublicRepos(gitAccount.github_login, 10)
+    : [];
+
   // Dev-only viewer id: provide ?uid=... to enable Follow button while auth is not wired
   const viewerId = typeof searchParams?.uid === "string" ? searchParams?.uid : undefined;
 
@@ -106,6 +119,12 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
               <strong>{counts.following}</strong> following
             </span>
           </div>
+          {/* If viewer is profile owner and no git account, offer connect */}
+          {viewerId === user.id && !gitAccount && (
+            <div className="mt-3">
+              <ConnectButton />
+            </div>
+          )}
         </div>
 
         <FollowButton
@@ -116,6 +135,28 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
       </header>
 
       <section>
+        <h2 className="text-lg font-medium mb-2">GitHub Repos</h2>
+        {gitAccount?.github_login ? (
+          repos.length > 0 ? (
+            <ul className="space-y-2">
+              {repos.map((r) => (
+                <li key={r.fullName} className="text-sm">
+                  <a href={r.htmlUrl} target="_blank" rel="noreferrer" className="link">
+                    {r.fullName}
+                  </a>
+                  <span className="text-neutral-500"> — {r.visibility}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-neutral-500">No public repos found.</p>
+          )
+        ) : (
+          <p className="text-sm text-neutral-500">Not connected to GitHub.</p>
+        )}
+      </section>
+
+      <section className="mt-4">
         <h2 className="text-lg font-medium mb-2">Posts</h2>
         <p className="text-sm text-neutral-500">User posts will appear here in a later milestone.</p>
       </section>

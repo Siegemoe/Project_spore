@@ -38,12 +38,12 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
     }
     loadUser();
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel("posts-insert")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "posts" },
-        (payload) => {
+        (payload: any) => {
           const row = payload.new as FeedItem;
           setItems((prev) => [row, ...prev]);
         }

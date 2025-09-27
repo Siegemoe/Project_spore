@@ -49,12 +49,12 @@ export default function CommentsClient({ postId }: Props) {
     loadInitial();
     loadUser();
 
-    const channel = supabase
+    const channel = (supabase as any)
       .channel(`comments-${postId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "comments" },
-        (payload) => {
+        (payload: any) => {
           const row = payload.new as CommentItem;
           if (row.post_id === postId) {
             setItems((prev) => [...prev, row]);

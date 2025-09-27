@@ -1,8 +1,36 @@
+"use client";
+
+import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
+
 export default function SignInPage() {
+  async function signInWithGitHub() {
+    await supabase.auth.signInWithOAuth({
+      provider: "github",
+      options: {
+        redirectTo: `${location.origin}/dev/profiles`,
+      } as any,
+    } as any);
+  }
+
   return (
-    <section className="container">
+    <section className="container space-y-4">
       <h1 className="hero-title">Sign in</h1>
-      <p className="hero-subtitle">Auth providers will be wired in Stage 1.</p>
+      <p className="hero-subtitle">Use your GitHub account to sign in.</p>
+
+      <button
+        type="button"
+        className="btn btn-accent disabled:opacity-60"
+        onClick={signInWithGitHub}
+        disabled={!isSupabaseConfigured}
+      >
+        Continue with GitHub
+      </button>
+
+      {!isSupabaseConfigured && (
+        <p className="text-sm text-neutral-600">
+          Supabase env not configured in this environment. OAuth button disabled.
+        </p>
+      )}
     </section>
   );
 }

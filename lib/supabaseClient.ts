@@ -1,11 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
-export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-export const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+export const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnon);
+export const isSupabaseConfigured = Boolean(
+  process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 type UploadResult = { data: any; error: any };
+
 type NoopChannel = {
   on: (..._args: any[]) => NoopChannel;
   subscribe: (..._args: any[]) => any;
@@ -24,10 +27,10 @@ function makeStubClient() {
   });
 
   const channel: NoopChannel = {
-    on: function on() {
+    on() {
       return this;
     },
-    subscribe: function subscribe() {
+    subscribe() {
       return {};
     },
   };
@@ -42,10 +45,20 @@ function makeStubClient() {
     removeChannel: (_c: any) => {
       /* no-op */
     },
-  } as const;
+    auth: {
+      async getUser() {
+        return { data: { user: null } };
+      },
+      async signInWithOAuth(_opts: any) {
+        // eslint-disable-next-line no-console
+        console.warn("Supabase is not configured; signInWithOAuth noop.");
+        return { data: null, error: new Error("Supabase not configured") };
+      },
+    },
+  };
 }
 
-export const supabase =
+export const supabase: SupabaseClient | ReturnType<typeof makeStubClient> =
   isSupabaseConfigured && supabaseUrl && supabaseAnon
     ? createClient(supabaseUrl, supabaseAnon)
-    : (makeStubClient() as unknown as ReturnType<typeof createClient>);
+    : makeStubClient();
