@@ -33,6 +33,10 @@ export function contentTypeToExt(contentType: string): string {
  * Use NEXT_PUBLIC_ env to allow client components to read at build time.
  * Example: NEXT_PUBLIC_NEW_MOBILE_UI=true
  */
-export const NEW_MOBILE_UI: boolean =
-  process.env.NEXT_PUBLIC_NEW_MOBILE_UI === "true" ||
-  process.env.NEXT_PUBLIC_NEW_MOBILE_UI === "1";
+export const NEW_MOBILE_UI: boolean = (() => {
+  const val = process.env.NEXT_PUBLIC_NEW_MOBILE_UI;
+  if (val === "false" || val === "0") return false;
+  if (val === "true" || val === "1") return true;
+  // Default to enabled when not explicitly set (helps Vercel if env missing)
+  return true;
+})();
