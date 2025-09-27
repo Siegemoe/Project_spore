@@ -14,9 +14,13 @@ type UserLite = {
   avatar_url: string | null;
 };
 
+type BadgeState = UserLite & {
+  github_login: string | null;
+};
+
 export function ProfileBadge() {
   const [loading, setLoading] = React.useState(true);
-  const [user, setUser] = React.useState<UserLite | null>(null);
+  const [user, setUser] = React.useState<BadgeState | null>(null);
   const [open, setOpen] = React.useState(false);
 
   React.useEffect(() => {
@@ -42,6 +46,20 @@ export function ProfileBadge() {
           .eq("id", uid)
           .maybeSingle();
 
+        // Resolve GitHub login from git_accounts or auth metadata as fallback
+        let github_login: string | null = null;
+        const { data: ga } = await (supabase as any)
+          .from("git_accounts")
+          .select("github_login")
+          .eq("user_id", uid)
+          .maybeSingle();
+        if (ga?.github_login) {
+          github_login = String(ga.github_login);
+        } else {
+          const meta: any = (data as any)?.user?.user_metadata || {};
+          github_login = meta?.user_name || meta?.preferred_username || meta?.username || null;
+        }
+
         if (!cancelled) {
           setUser(
             row
@@ -50,8 +68,9 @@ export function ProfileBadge() {
                   handle: (row as any).handle ?? null,
                   display_name: (row as any).display_name ?? null,
                   avatar_url: (row as any).avatar_url ?? null,
+                  github_login,
                 }
-              : { id: uid, handle: null, display_name: null, avatar_url: null }
+              : { id: uid, handle: null, display_name: null, avatar_url: null, github_login }
           );
         }
       } finally {
@@ -94,18 +113,42 @@ export function ProfileBadge() {
   // Authenticated → badge with dropdown (placeholders)
   return (
     <div className="relative">
-      <button
-        type="button"
-        className="inline-flex items-center gap-2"
-        onClick={() => setOpen((s) => !s)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-      >
-        <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="sm" />
-        <span className="hidden md:inline text-sm text-text-primary max-w-[160px] truncate">
-          {user.display_name || user.handle || "Profile"}
-        </span>
-      </button>
+      <div className="flex items-center gap-2">
+        <a
+          href={
+            user.github_login
+              ? `https://github.com/${encodeURIComponent(user.github_login)}`
+              : user.handle
+              ? `/u/${encodeURIComponent(user.handle)}`
+              : "/u/me"
+          }
+          target={user.github_login ? "_blank" : undefined}
+          rel={user.github_login ? "noreferrer" : undefined}
+          className="inline-flex items-center gap-2"
+          aria-label={user.github_login ? `Open @${user.github_login} on GitHub` : "Open profile"}
+          title={user.github_login ? `@${user.github_login}` : "Profile"}
+        >
+          <Avatar
+            src={user.github_login ? `https://github.com/${user.github_login}.png` : user.avatar_url ?? undefined}
+            name={user.display_name || user.github_login || user.handle || "@"}
+            size="sm"
+          />
+          <span className="hidden md:inline text-sm text-text-primary max-w-[160px] truncate">
+            {user.github_login ? `@${user.github_login}` : user.display_name || user.handle || "Profile"}
+          </span>
+        </a>
+
+        <button
+          type="button"
+          className="rounded-md border border-border-subtle px-2 py-1 text-xs text-text-secondary hover:bg-[rgb(var(--surface-muted))]"
+          onClick={() => setOpen((s) => !s)}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          title="Account"
+        >
+          •••
+        </button>
+      </div>
 
       {open ? (
         <div
