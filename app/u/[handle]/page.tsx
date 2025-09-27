@@ -13,17 +13,28 @@ type PageProps = {
 
 async function getCounts(userId: string) {
   const admin = getSupabaseAdmin();
-  const followers = await admin
+
+  const followersRes = await admin
     .from("follows")
     .select("*", { head: true, count: "exact" })
     .eq("followee_id", userId);
-  const following = await admin
+
+  if ((followersRes as any)?.error) {
+    throw new Error(`Followers count failed: ${(followersRes as any).error.message}`);
+  }
+
+  const followingRes = await admin
     .from("follows")
     .select("*", { head: true, count: "exact" })
     .eq("follower_id", userId);
+
+  if ((followingRes as any)?.error) {
+    throw new Error(`Following count failed: ${(followingRes as any).error.message}`);
+  }
+
   return {
-    followers: followers.count ?? 0,
-    following: following.count ?? 0,
+    followers: (followersRes as any).count ?? 0,
+    following: (followingRes as any).count ?? 0,
   };
 }
 
@@ -39,12 +50,18 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
         <p className="text-sm text-neutral-600">
           If you are running locally, set NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE, then refresh.
         </p>
-        <p className="text-sm text-neutral-600 mt-4">
-          You can still navigate to known profiles:
-        </p>
+        <p className="text-sm text-neutral-600 mt-4">You can still navigate to known profiles:</p>
         <ul className="list-disc list-inside text-sm mt-1">
-          <li><a className="link" href="/u/alice">/u/alice</a></li>
-          <li><a className="link" href="/u/bob">/u/bob</a></li>
+          <li>
+            <a className="link" href="/u/alice">
+              /u/alice
+            </a>
+          </li>
+          <li>
+            <a className="link" href="/u/bob">
+              /u/bob
+            </a>
+          </li>
         </ul>
       </div>
     );
@@ -53,83 +70,83 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const admin = getSupabaseAdmin();
 
   const handle = decodeURIComponent(params.handle).replace(/^@/, "");
+
+  // 1) Try to resolve by users.handle (case-insensitive)
   const { data: userData, error } = await admin
     .from("users")
     .select("id, handle, display_name, avatar_url, bio, created_at")
     .ilike("handle", handle)
     .maybeSingle();
-  let user: any = userData;
 
   if (error) {
     throw new Error(error.message);
   }
+  let user: any = userData;
+
+  // 2) Fallback: allow visiting by GitHub login (/u/{github_login})
   if (!user) {
-    // Fallback: allow visiting /u/{github_login} even if users.handle is different or not yet created.
     const { data: ga } = await admin
       .from("git_accounts")
       .select("user_id, github_login")
       .ilike("github_login", handle)
       .maybeSingle();
 
-    let userByGithub: any = null;
     if (ga?.user_id) {
       const { data: u2 } = await admin
         .from("users")
         .select("id, handle, display_name, avatar_url, bio, created_at")
         .eq("id", ga.user_id)
         .maybeSingle();
-      userByGithub = u2 ?? null;
+      user = u2 ?? null;
 
-      // If a user exists but has no handle, set it now for stable URLs
-      if (userByGithub && !userByGithub.handle) {
+      // If a user exists but has no handle, set one now based on the path
+      if (user && !user.handle) {
         const desired = handle.toLowerCase().replace(/[^a-z0-9_-]/g, "");
         let newHandle = desired || `user-${String(ga.user_id).slice(0, 6)}`;
-        const { data: exists } = await admin.from("users").select("id").ilike("handle", newHandle).limit(1);
+        const { data: exists } = await admin
+          .from("users")
+          .select("id")
+          .ilike("handle", newHandle)
+          .limit(1);
         if (exists && exists.length > 0) {
           newHandle = `${newHandle}-${String(ga.user_id).slice(0, 4)}`;
         }
-        await admin
-          .from("users")
-          .update({ handle: newHandle, is_public: true })
-          .eq("id", ga.user_id);
+        await admin.from("users").update({ handle: newHandle, is_public: true }).eq("id", ga.user_id);
+
         // Refresh
         const { data: refreshed } = await admin
           .from("users")
           .select("id, handle, display_name, avatar_url, bio, created_at")
           .eq("id", ga.user_id)
           .maybeSingle();
-        userByGithub = refreshed ?? userByGithub;
+        user = refreshed ?? user;
       }
     }
-
-    if (!userByGithub) {
-      return (
-        <div className="container py-10">
-          <h1 className="text-xl font-semibold">User not found</h1>
-        </div>
-      );
-    }
-
-    // Rebind "user" to fallback result
-    user = userByGithub;
   }
 
+  if (!user) {
+    return (
+      <div className="container py-10">
+        <h1 className="text-xl font-semibold">User not found</h1>
+      </div>
+    );
+  }
+
+  // 3) Counts and GitHub info
   const counts = await getCounts(user.id);
 
-  // GitHub connect state
   const { data: gitAccount } = await admin
     .from("git_accounts")
     .select("github_login")
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const repos = gitAccount?.github_login
-    ? await fetchPublicRepos(gitAccount.github_login, 10)
-    : [];
+  const repos = gitAccount?.github_login ? await fetchPublicRepos(gitAccount.github_login, 10) : [];
   const githubLogin = gitAccount?.github_login ?? null;
 
-  // Dev-only viewer id: provide ?uid=... to enable Follow button while auth is not wired
-  const viewerId = typeof searchParams?.uid === "string" ? searchParams?.uid : undefined;
+  // Dev-only viewer id for follow button testing
+  const viewerId =
+    typeof searchParams?.uid === "string" ? (searchParams?.uid as string) : undefined;
 
   let initialIsFollowing = false;
   if (viewerId) {
@@ -141,7 +158,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
     initialIsFollowing = (exists.count ?? 0) > 0;
   }
 
-  // Compute display strings for stats
+  // 4) Stats formatting
   const createdAt = (user as any).created_at ? new Date((user as any).created_at as string) : null;
   const ageText = createdAt
     ? (() => {
@@ -154,7 +171,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
       })()
     : undefined;
 
-  const contributionsText = undefined; // TODO: posts + comments count endpoint (Phase 2 follow-up)
+  const contributionsText = undefined; // TODO: posts + comments count endpoint
 
   return (
     <div className="container py-10 space-y-6 max-w-3xl">
