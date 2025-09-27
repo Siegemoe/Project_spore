@@ -1,4 +1,5 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/ssr";
 
 export const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 export const supabaseAnon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
@@ -63,18 +64,5 @@ function makeStubClient() {
 
 export const supabase: SupabaseClient | ReturnType<typeof makeStubClient> =
   isSupabaseConfigured && supabaseUrl && supabaseAnon
-    ? createClient(supabaseUrl, supabaseAnon, {
-        auth: {
-          // Persist session in localStorage so auth survives route changes and reloads
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          // Explicitly set storage to avoid environments that default to memory
-          storage:
-            typeof window !== "undefined" && "localStorage" in window
-              ? window.localStorage
-              : undefined,
-        },
-        // Realtime should broadcast auth across tabs; enabled by default, keep defaults
-      })
+    ? createBrowserClient(supabaseUrl, supabaseAnon)
     : makeStubClient();
