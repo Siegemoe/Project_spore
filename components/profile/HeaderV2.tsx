@@ -18,15 +18,26 @@ export type HeaderV2Props = {
   counts: { followers: number; following: number };
   viewerId?: string;
   reposCount?: number;
+  githubLogin?: string | null;
 };
 
-export function HeaderV2({ user, counts, viewerId, reposCount }: HeaderV2Props) {
+export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: HeaderV2Props) {
   const isSelf = viewerId === user.id;
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border-subtle">
       {/* Banner (placeholder gradient; user-customizable later) */}
       <div className="relative h-24 w-full bg-gradient-to-r from-neutral-200 to-neutral-100 dark:from-neutral-800 dark:to-neutral-700">
+        {githubLogin ? (
+          <a
+            href={`https://github.com/${encodeURIComponent(githubLogin)}`}
+            target="_blank"
+            rel="noreferrer"
+            className="absolute inset-0"
+            aria-label="Open GitHub profile"
+            title="Open GitHub profile"
+          />
+        ) : null}
         {/* Back button (always visible) */}
         <button
           type="button"
@@ -66,7 +77,27 @@ export function HeaderV2({ user, counts, viewerId, reposCount }: HeaderV2Props) 
                     ✓
                   </span>
                 </div>
-                <p className="truncate text-sm text-text-secondary">@{user.handle}</p>
+                <p className="truncate text-sm text-text-secondary">
+                  @{user.handle}
+                  {githubLogin ? (
+                    <a
+                      href={`https://github.com/${encodeURIComponent(githubLogin)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="ml-2 inline-flex items-center gap-1 rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-text-primary hover:bg-[rgb(var(--surface-muted))]"
+                      title="GitHub profile"
+                      aria-label="GitHub profile"
+                    >
+                      <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+                        <path
+                          fill="currentColor"
+                          d="M8 0C3.58 0 0 3.64 0 8.13c0 3.6 2.29 6.65 5.47 7.73.4.08.55-.18.55-.39 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.16-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.84.72 1.21 1.87.87 2.33.66.07-.53.28-.87.51-1.07-1.78-.2-3.64-.9-3.64-4.01 0-.89.31-1.62.82-2.19-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.84.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.06 2.2-.84 2.2-.84.44 1.1.16 1.92.08 2.12.51.57.82 1.3.82 2.19 0 3.12-1.87 3.8-3.65 4 .29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.47.55.39A8.14 8.14 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"
+                        />
+                      </svg>
+                      {githubLogin}
+                    </a>
+                  ) : null}
+                </p>
               </div>
 
               <div className="flex items-center gap-2">

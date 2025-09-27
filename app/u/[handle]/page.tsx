@@ -82,6 +82,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const repos = gitAccount?.github_login
     ? await fetchPublicRepos(gitAccount.github_login, 10)
     : [];
+  const githubLogin = gitAccount?.github_login ?? null;
 
   // Dev-only viewer id: provide ?uid=... to enable Follow button while auth is not wired
   const viewerId = typeof searchParams?.uid === "string" ? searchParams?.uid : undefined;
@@ -125,6 +126,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
         counts={counts}
         viewerId={viewerId}
         reposCount={repos.length}
+        githubLogin={githubLogin}
       />
 
       <StatsRow reposCount={repos.length} contributionsText={contributionsText} accountAgeText={ageText} />

@@ -29,7 +29,7 @@ export default function SignInPage() {
   async function signInWithGitHub() {
     const rt = searchParams?.get("returnTo") ?? "/";
     const safePath = rt.startsWith("/") ? rt : `/${rt}`;
-    const redirectTo = `${location.origin}${safePath}`;
+    const redirectTo = `${location.origin}/auth/callback?returnTo=${encodeURIComponent(safePath)}`;
 
     await supabase.auth.signInWithOAuth({
       provider: "github",

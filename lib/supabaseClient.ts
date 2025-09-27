@@ -49,6 +49,9 @@ function makeStubClient() {
       async getUser() {
         return { data: { user: null } };
       },
+      async getSession() {
+        return { data: { session: null } };
+      },
       async signInWithOAuth(_opts: any) {
         // eslint-disable-next-line no-console
         console.warn("Supabase is not configured; signInWithOAuth noop.");
