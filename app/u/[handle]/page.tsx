@@ -192,6 +192,26 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const repos = gitAccount?.github_login ? await fetchPublicRepos(gitAccount.github_login, 10) : [];
   const githubLogin = gitAccount?.github_login ?? null;
 
+  // Initial page of this user's posts (newest first)
+  const { data: upItems, error: upErr } = await admin
+    .from("posts")
+    .select("id,user_id,caption,media_url,media_type,created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (upErr) {
+    throw new Error(`Failed to load user posts: ${upErr.message}`);
+  }
+  const userPosts = (upItems ?? []) as Array<{
+    id: string;
+    user_id: string;
+    caption: string | null;
+    media_url: string | null;
+    media_type: string | null;
+    created_at: string;
+  }>;
+  const userPostsNextCursor = userPosts.length > 0 ? userPosts[userPosts.length - 1].id : undefined;
+
   // Dev-only viewer id for follow button testing
   const viewerId =
     typeof searchParams?.uid === "string" ? (searchParams?.uid as string) : undefined;
@@ -243,11 +263,11 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
       <ProfileTabs
         repos={repos}
         about={{ bio: user.bio ?? null }}
-        postsPlaceholder={
-          <div className="card p-4">
-            <p className="text-sm text-text-secondary">User posts will appear here in a later milestone.</p>
-          </div>
-        }
+        posts={{
+          userId: user.id,
+          initialItems: userPosts,
+          initialNextCursor: userPostsNextCursor,
+        }}
       />
     </div>
   );

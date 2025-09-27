@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { RepoList } from "@/components/profile/RepoList";
+import PostsTab from "@/components/profile/PostsTab";
 
 type About = {
   bio?: string | null;
@@ -11,6 +12,18 @@ type About = {
 export interface ProfileTabsProps {
   repos: Parameters<typeof RepoList>[0]["repos"];
   about: About;
+  posts?: {
+    userId: string;
+    initialItems: Array<{
+      id: string;
+      user_id: string;
+      caption: string | null;
+      media_url: string | null;
+      media_type: string | null;
+      created_at: string;
+    }>;
+    initialNextCursor?: string;
+  };
   // Placeholder for future posts list
   postsPlaceholder?: React.ReactNode;
 }
@@ -18,7 +31,7 @@ export interface ProfileTabsProps {
 const TabKeys = ["posts", "repos", "about"] as const;
 type TabKey = typeof TabKeys[number];
 
-export function ProfileTabs({ repos, about, postsPlaceholder }: ProfileTabsProps) {
+export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTabsProps) {
   const [tab, setTab] = React.useState<TabKey>("posts");
 
   return (
@@ -37,10 +50,18 @@ export function ProfileTabs({ repos, about, postsPlaceholder }: ProfileTabsProps
 
       <div>
         {tab === "posts" ? (
-          postsPlaceholder ?? (
-            <div className="card p-4">
-              <p className="text-sm text-text-secondary">User posts will appear here in a later milestone.</p>
-            </div>
+          posts ? (
+            <PostsTab
+              userId={posts.userId}
+              initialItems={posts.initialItems}
+              initialNextCursor={posts.initialNextCursor}
+            />
+          ) : (
+            postsPlaceholder ?? (
+              <div className="card p-4">
+                <p className="text-sm text-text-secondary">User posts will appear here in a later milestone.</p>
+              </div>
+            )
           )
         ) : tab === "repos" ? (
           <RepoList repos={repos} />
