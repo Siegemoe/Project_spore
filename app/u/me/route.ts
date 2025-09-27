@@ -29,17 +29,54 @@ export async function GET(req: Request) {
     );
   }
 
-  // 2) Resolve user's handle; fall back to home if missing
+  // 2) Resolve user's handle; if missing, create a user row from auth metadata (first-run onboarding)
   const { data: row } = await supabase
     .from("users")
     .select("handle")
     .eq("id", user.id)
     .maybeSingle();
 
-  const handle = row?.handle?.toString().trim();
+  let handle = row?.handle?.toString().trim() || "";
+
   if (!handle) {
-    // No handle found (unlikely in seeded/demo env) → go home
-    return NextResponse.redirect(`${origin}/`, 302);
+    // Derive a handle from GitHub username or fallback to uid suffix
+    const meta: any = user.user_metadata || {};
+    const gh = meta.user_name || meta.preferred_username || meta.username || "";
+    const base = (gh || `user-${user.id.slice(0, 6)}`).toLowerCase().replace(/[^a-z0-9_-]/g, "");
+    handle = base || `user-${user.id.slice(0, 6)}`;
+
+    // Ensure uniqueness: if handle exists, suffix with short id
+    const { data: exists } = await supabase
+      .from("users")
+      .select("id")
+      .ilike("handle", handle)
+      .limit(1);
+    if (exists && exists.length > 0) {
+      handle = `${handle}-${user.id.slice(0, 4)}`;
+    }
+
+    // Upsert users row (RLS should allow inserting own row as authenticated user)
+    await supabase.from("users").upsert(
+      {
+        id: user.id,
+        handle,
+        display_name: meta.name || gh || null,
+        avatar_url: meta.avatar_url || null,
+        bio: null,
+      },
+      { onConflict: "id" }
+    );
+
+    // Also upsert git_accounts for GitHub badge if available
+    if (gh) {
+      await supabase.from("git_accounts").upsert(
+        {
+          user_id: user.id,
+          github_login: gh,
+        },
+        { onConflict: "user_id" }
+      );
+    }
   }
 
   // 3) Redirect to the public profile page
