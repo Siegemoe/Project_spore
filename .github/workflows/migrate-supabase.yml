@@ -4,39 +4,76 @@ on:
   workflow_dispatch:
     inputs:
       apply:
-        description: "Apply migrations to Supabase (type YES to continue)"
+        description: "Type YES to apply migrations/policies/seeds to Supabase"
         required: true
         default: "NO"
 
 jobs:
   migrate:
-    if: ${{ github.event.inputs.apply == 'YES' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Show inputs
+        run: |
+          echo "apply=${{ github.event.inputs.apply }}"
+
+      - name: Guard - require apply=YES
+        run: |
+          if [ "${{ github.event.inputs.apply }}" != "YES" ]; then
+            echo "::warning:: To run migrations, re-run this workflow and set 'apply' to YES."
+            exit 1
+          fi
+
+      - name: Check SUPABASE_DB_URL secret
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error:: SUPABASE_DB_URL secret is not set. Add it in Repo Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          echo "Using Supabase connection (sanitized):"
+          echo "$SUPABASE_DB_URL" | sed 's#://[^:@]*:[^@]*@#://***:***@#'
 
       - name: Install psql client
         run: |
           sudo apt-get update -y
           sudo apt-get install -y postgresql-client
 
-      - name: Verify migration files
+      - name: Verify SQL folders
         run: |
-          ls -la supabase/migrations || true
+          echo "Listing db folders…"
+          ls -la db || true
+          ls -la db/migrations || true
+          ls -la db/policies || true
+          ls -la db/seeds || true
 
-      - name: Apply migrations to Supabase
+      - name: Apply migrations, then policies, then seeds
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        shell: bash
         run: |
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "SUPABASE_DB_URL secret is not set. Add it in GitHub → Settings → Secrets and variables → Actions."
-            exit 1
-          fi
           set -euo pipefail
           shopt -s nullglob
-          for f in $(ls -1 supabase/migrations/*.sql | sort); do
-            echo "==> Applying $f"
-            psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$f"
-          done
-          echo "All migrations applied successfully."
+
+          apply_dir () {
+            local dir="$1"
+            if [ -d "$dir" ]; then
+              echo "==> Applying $(basename "$dir") files…"
+              mapfile -t files < <(find "$dir" -type f -name '*.sql' | sort)
+              for f in "${files[@]}"; do
+                echo "---- $f"
+                psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -f "$f"
+              done
+            else
+              echo "==> Skipping missing dir: $dir"
+            fi
+          }
+
+          apply_dir db/migrations
+          apply_dir db/policies
+          apply_dir db/seeds
+
+          echo "All SQL applied successfully."
