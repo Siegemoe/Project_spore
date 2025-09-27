@@ -157,7 +157,7 @@ export function MobileTabBar({ onCreate }: MobileTabBarProps) {
         </li>
         <li>
           <Link
-            href={profileHref as any}
+            href={"/u/me" as Route}
             className={cn(
               "flex h-12 flex-col items-center justify-center text-xs",
               isActive("/u/") ? "text-text-primary" : "text-text-secondary"
