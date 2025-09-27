@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import FollowButton from "@/components/follows/FollowButton";
 import { Button } from "@/components/ui/Button";
+import EditProfileSheet from "@/components/profile/EditProfileSheet";
 
 export type HeaderV2Props = {
   user: {
@@ -23,6 +24,7 @@ export type HeaderV2Props = {
 
 export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: HeaderV2Props) {
   const isSelf = viewerId === user.id;
+  const [openEdit, setOpenEdit] = React.useState(false);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border-subtle">
@@ -102,9 +104,28 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: He
 
               <div className="flex items-center gap-2">
                 {isSelf ? (
-                  <Button variant="outline" size="sm" title="Edit Profile (placeholder)" aria-label="Edit Profile">
-                    Edit Profile
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Edit Profile"
+                      aria-label="Edit Profile"
+                      onClick={() => setOpenEdit(true)}
+                    >
+                      Edit Profile
+                    </Button>
+                    <EditProfileSheet
+                      open={openEdit}
+                      onOpenChange={setOpenEdit}
+                      initial={{
+                        display_name: user.display_name ?? null,
+                        bio: user.bio ?? null,
+                      }}
+                      onSave={async () => {
+                        // Persistence will be wired in the next PR
+                      }}
+                    />
+                  </>
                 ) : (
                   <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={false} />
                 )}
