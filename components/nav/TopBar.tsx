@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
+import { ProfileBadge } from "@/components/auth/ProfileBadge";
 
 export function TopBar() {
   return (
@@ -13,12 +14,7 @@ export function TopBar() {
         </Link>
 
         <div className="hidden gap-2 sm:flex">
-          <Link href="/auth/signin">
-            <Button variant="outline" size="sm">Login</Button>
-          </Link>
-          <Link href="/auth/signup">
-            <Button variant="accent" size="sm">Sign Up</Button>
-          </Link>
+          <ProfileBadge />
         </div>
       </div>
     </header>

@@ -86,7 +86,7 @@ export function MobileTabBar({ onCreate }: MobileTabBarProps) {
             aria-label="Search"
           >
             <SearchIcon className="h-6 w-6" />
-            <span className={cn("mt-0.5", { "font-medium text-text-primary": isActive("/search") })}>Search</span>
+            <span className={cn("mt-0.5", { "font-medium text-text-primary": isActive("/search") })}>Explore</span>
           </Link>
         </li>
         <li>
