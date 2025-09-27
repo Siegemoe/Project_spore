@@ -1,4 +1,4 @@
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
 export type FeedRow = {
   id: string;
@@ -13,7 +13,8 @@ export type FeedRow = {
  * Minimal feed query (newest first). Personalization will be added in a follow-up PR.
  */
 export async function feedQuery(limit: number, createdBefore?: string) {
-  let q = supabaseAdmin
+  const admin = getSupabaseAdmin();
+  let q = admin
     .from("posts")
     .select("id,user_id,caption,media_url,media_type,created_at")
     .order("created_at", { ascending: false })

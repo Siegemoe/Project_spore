@@ -34,9 +34,7 @@ jobs:
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
-          if [ -z "$SUPABASE_DB_URL" ]; then
-            echo "::error:: SUPABASE_DB_URL secret is not set. Add it in Repo Settings → Secrets and variables → Actions."
-            exit 1
+          echo "::notice:: Using connection string from SUPABASE_DB_URL secret."            exit 1
           fi
           echo "Using Supabase connection (sanitized):"
           echo "$SUPABASE_DB_URL" | sed 's#://[^:@]*:[^@]*@#://***:***@#'

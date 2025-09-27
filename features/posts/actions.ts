@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   MEDIA_BUCKET,
   MAX_UPLOAD_BYTES,
@@ -74,11 +74,13 @@ export async function createPost(input: z.infer<typeof CreatePostInput>) {
 
   let mediaUrl: string | null = null;
   if (parsed.objectPath) {
-    const pub = supabaseAdmin.storage.from(MEDIA_BUCKET).getPublicUrl(parsed.objectPath);
+    const admin = getSupabaseAdmin();
+    const pub = admin.storage.from(MEDIA_BUCKET).getPublicUrl(parsed.objectPath);
     mediaUrl = pub.data.publicUrl ?? null;
   }
 
-  const { error } = await supabaseAdmin.from("posts").insert({
+  const admin = getSupabaseAdmin();
+  const { error } = await admin.from("posts").insert({
     user_id: parsed.userId,
     caption: parsed.caption ?? null,
     media_url: mediaUrl,
@@ -100,7 +102,8 @@ export async function listFeed(input: z.infer<typeof FeedQuery> & { userId?: str
   const parsed = FeedQuery.parse(input);
 
   // Placeholder: newest first, simple page without personalization.
-  let query = supabaseAdmin
+  const admin = getSupabaseAdmin();
+  let query = admin
     .from("posts")
     .select("id,user_id,caption,media_url,media_type,created_at", { count: "exact" })
     .order("created_at", { ascending: false })
@@ -108,7 +111,7 @@ export async function listFeed(input: z.infer<typeof FeedQuery> & { userId?: str
 
   if (parsed.cursor) {
     // Simple cursor by created_at cutoff; a stable (created_at,id) pair can be added later.
-    const { data: cur } = await supabaseAdmin
+    const { data: cur } = await admin
       .from("posts")
       .select("created_at")
       .eq("id", parsed.cursor)
