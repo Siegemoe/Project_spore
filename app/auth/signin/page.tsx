@@ -7,7 +7,8 @@ export default function SignInPage() {
     await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
-        redirectTo: `${location.origin}/dev/profiles`,
+        // Return to home; UI will react to session and show appropriate chrome
+        redirectTo: `${location.origin}/`,
       } as any,
     } as any);
   }
