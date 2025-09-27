@@ -62,6 +62,7 @@ export async function POST() {
         handle,
         display_name: meta.name || meta.user_name || null,
         avatar_url: meta.avatar_url || null,
+        is_public: true,
       },
       { onConflict: "id" }
     );
