@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/cn";
 import type { Route } from "next";
+import { supabase } from "@/lib/supabaseClient";
+import * as React from "react";
 
 export interface MobileTabBarProps {
   onCreate?: () => void;
@@ -50,6 +52,48 @@ function UserIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export function MobileTabBar({ onCreate }: MobileTabBarProps) {
   const pathname = usePathname() || "/";
+
+  // Determine where "Profile" should route:
+  // - If logged in and we can resolve a handle, go to /u/{handle}
+  // - Otherwise, send to /auth/signin with returnTo=current path
+  const [profileHref, setProfileHref] = React.useState<string>("/auth/signin");
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function init() {
+      try {
+        // Default to sign-in with returnTo of current route
+        const current =
+          typeof window !== "undefined"
+            ? `${window.location.pathname}${window.location.search || ""}`
+            : pathname;
+        setProfileHref(`/auth/signin?returnTo=${encodeURIComponent(current)}`);
+
+        const { data } = await supabase.auth.getUser();
+        const uid = (data as any)?.user?.id as string | undefined;
+        if (!uid) return;
+
+        // Resolve handle using public anon client
+        const { data: userRow, error } = await (supabase as any)
+          .from("users")
+          .select("handle")
+          .eq("id", uid)
+          .maybeSingle();
+
+        if (!error && userRow?.handle && !cancelled) {
+          setProfileHref(`/u/${userRow.handle}`);
+        }
+      } catch {
+        // leave default
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   const isActive = (href: string) => {
     if (href === "/") return pathname === "/";
@@ -113,7 +157,7 @@ export function MobileTabBar({ onCreate }: MobileTabBarProps) {
         </li>
         <li>
           <Link
-            href="/auth/signin"
+            href={profileHref as any}
             className={cn(
               "flex h-12 flex-col items-center justify-center text-xs",
               isActive("/u/") ? "text-text-primary" : "text-text-secondary"

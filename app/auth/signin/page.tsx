@@ -1,14 +1,20 @@
 "use client";
 
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
+import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
+  const searchParams = useSearchParams();
+
   async function signInWithGitHub() {
+    const rt = searchParams?.get("returnTo") ?? "/";
+    const safePath = rt.startsWith("/") ? rt : `/${rt}`;
+    const redirectTo = `${location.origin}${safePath}`;
+
     await supabase.auth.signInWithOAuth({
       provider: "github",
       options: {
-        // Return to home; UI will react to session and show appropriate chrome
-        redirectTo: `${location.origin}/`,
+        redirectTo
       } as any,
     } as any);
   }
