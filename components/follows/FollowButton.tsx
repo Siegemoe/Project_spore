@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { toggleFollow } from "@/features/follows/actions";
 import { supabase } from "@/lib/supabaseClient";
+import { Button } from "@/components/ui/Button";
 
 type Props = {
   followerId?: string; // optional until auth is wired
@@ -54,14 +55,15 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
   }
 
   return (
-    <button
+    <Button
       type="button"
       onClick={onToggle}
       disabled={disabled}
-      className={`btn ${isFollowing ? "btn-outline" : "btn-accent"} disabled:opacity-60`}
+      variant={isFollowing ? "outline" : "accent"}
+      size="sm"
       title={!viewerId ? "Sign in to follow" : undefined}
     >
       {busy ? "..." : isFollowing ? "Following" : "Follow"}
-    </button>
+    </Button>
   );
 }
