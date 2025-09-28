@@ -21,9 +21,10 @@ export type HeaderV2Props = {
   reposCount?: number;
   githubLogin?: string | null;
   accountAgeText?: string | undefined;
+  contributionsTotal?: number | undefined;
 };
 
-export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, accountAgeText }: HeaderV2Props) {
+export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, accountAgeText, contributionsTotal }: HeaderV2Props) {
   const isSelf = viewerId === user.id;
   const [openEdit, setOpenEdit] = React.useState(false);
 
@@ -149,6 +150,11 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
               {typeof reposCount === "number" ? (
                 <span className="text-text-secondary">
                   <strong className="text-text-primary">{reposCount}</strong> repos
+                </span>
+              ) : null}
+              {typeof contributionsTotal === "number" ? (
+                <span className="text-text-secondary">
+                  <strong className="text-text-primary">{contributionsTotal}</strong> contributions
                 </span>
               ) : null}
               {accountAgeText ? (

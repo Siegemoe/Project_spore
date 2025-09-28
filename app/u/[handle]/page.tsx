@@ -261,6 +261,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
         reposCount={repos.length}
         githubLogin={githubLogin}
         accountAgeText={ageText}
+        contributionsTotal={contributions.total}
       />
 
       {/* StatsRow omitted per new design; we’ll add Contributions later in header or a dedicated section */}
