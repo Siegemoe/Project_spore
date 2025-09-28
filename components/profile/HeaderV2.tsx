@@ -33,7 +33,7 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
 <section className="relative w-full overflow-hidden">
       {/* Banner (readable flair, mobile-first) */}
       <div
-        className="relative z-0 h-52 sm:h-60 w-full overflow-hidden bg-white"
+        className="relative z-0 h-36 sm:h-40 w-full overflow-hidden bg-white"
         style={{
           backgroundImage:
             "linear-gradient(135deg, rgba(16,185,129,0.9), rgba(5,150,105,0.95)), radial-gradient(600px 180px at -10% -20%, rgba(255,255,255,0.9), transparent 60%), radial-gradient(800px 220px at 110% -10%, rgba(255,255,255,0.7), transparent 60%)",
@@ -64,7 +64,7 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
 
       {/* Header content */}
       <div className="relative z-20">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-16 sm:-mt-20 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-12 sm:-mt-14 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
           <div className="shrink-0">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full" />
           </div>
@@ -107,7 +107,7 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-col gap-2 items-stretch sm:items-end shrink-0">
                 {isSelf ? (
                   <>
                     <Button
@@ -129,7 +129,13 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
                     />
                   </>
                 ) : (
-                  <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={initialIsFollowing ?? false} />
+                  <>
+                    <FollowButton
+                      followerId={viewerId}
+                      followeeId={user.id}
+                      initialIsFollowing={initialIsFollowing ?? false}
+                    />
+                  </>
                 )}
               </div>
             </div>
@@ -138,37 +144,41 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed line-clamp-3">{user.bio}</p>
             ) : null}
 
-            {/* Followers / Following / Repos / Age */}
-            <div className="mt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
-              <Link
-                href={`/u/${encodeURIComponent(user.handle)}/followers` as any}
-                className="text-text-primary hover:opacity-80"
-                aria-label="Followers"
-              >
-                <strong className="font-semibold">{counts.followers}</strong> followers
-              </Link>
-              <Link
-                href={`/u/${encodeURIComponent(user.handle)}/following` as any}
-                className="text-text-primary hover:opacity-80"
-                aria-label="Following"
-              >
-                <strong className="font-semibold">{counts.following}</strong> following
-              </Link>
-              {typeof reposCount === "number" ? (
-                <span className="text-text-secondary">
-                  <strong className="text-text-primary font-semibold">{reposCount}</strong> repos
-                </span>
-              ) : null}
-              {typeof contributionsTotal === "number" ? (
-                <span className="text-text-secondary">
-                  <strong className="text-text-primary font-semibold">{contributionsTotal}</strong> contributions
-                </span>
-              ) : null}
-              {accountAgeText ? (
-                <span className="text-text-secondary">
-                  <strong className="text-text-primary font-semibold">{accountAgeText}</strong> age
-                </span>
-              ) : null}
+            {/* Followers / Following / Repos on first line; Contributions / Age on second */}
+            <div className="mt-3 text-sm">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                <Link
+                  href={`/u/${encodeURIComponent(user.handle)}/followers` as any}
+                  className="text-text-primary hover:opacity-80"
+                  aria-label="Followers"
+                >
+                  <strong className="font-semibold">{counts.followers}</strong> followers
+                </Link>
+                <Link
+                  href={`/u/${encodeURIComponent(user.handle)}/following` as any}
+                  className="text-text-primary hover:opacity-80"
+                  aria-label="Following"
+                >
+                  <strong className="font-semibold">{counts.following}</strong> following
+                </Link>
+                {typeof reposCount === "number" ? (
+                  <span className="text-text-secondary">
+                    <strong className="text-text-primary font-semibold">{reposCount}</strong> repos
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-6">
+                {typeof contributionsTotal === "number" ? (
+                  <span className="text-text-secondary">
+                    <strong className="text-text-primary font-semibold">{contributionsTotal}</strong> contributions
+                  </span>
+                ) : null}
+                {accountAgeText ? (
+                  <span className="text-text-secondary">
+                    <strong className="text-text-primary font-semibold">{accountAgeText}</strong> age
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
         </div>
