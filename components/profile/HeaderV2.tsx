@@ -18,13 +18,14 @@ export type HeaderV2Props = {
   };
   counts: { followers: number; following: number };
   viewerId?: string;
+  initialIsFollowing?: boolean;
   reposCount?: number;
   githubLogin?: string | null;
   accountAgeText?: string | undefined;
   contributionsTotal?: number | undefined;
 };
 
-export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, accountAgeText, contributionsTotal }: HeaderV2Props) {
+export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCount, githubLogin, accountAgeText, contributionsTotal }: HeaderV2Props) {
   const isSelf = viewerId === user.id;
   const [openEdit, setOpenEdit] = React.useState(false);
 
@@ -32,7 +33,7 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
     <section className="overflow-hidden rounded-2xl border border-border-subtle">
       {/* Banner (readable flair, mobile-first) */}
       <div
-        className="relative z-0 h-36 w-full overflow-hidden bg-white"
+        className="relative z-0 h-40 sm:h-44 md:h-48 w-full overflow-hidden bg-white"
         style={{
           backgroundImage:
             "linear-gradient(135deg, rgba(16,185,129,0.9), rgba(5,150,105,0.95)), radial-gradient(600px 180px at -10% -20%, rgba(255,255,255,0.9), transparent 60%), radial-gradient(800px 220px at 110% -10%, rgba(255,255,255,0.7), transparent 60%)",
@@ -63,15 +64,15 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
 
       {/* Header content */}
       <div className="relative z-20 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
-        <div className="-mt-14 flex items-end justify-between gap-3">
+        <div className="-mt-16 flex items-end justify-between gap-3">
           <div className="shrink-0">
-            <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-16 w-16 sm:h-20 sm:w-20" />
+            <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full" />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <h1 className="truncate text-xl font-semibold text-text-primary">
+                  <h1 className="truncate text-xl sm:text-2xl font-semibold text-text-primary">
                     {user.display_name || user.handle}
                   </h1>
                   {/* Verification badge placeholder */}
@@ -125,23 +126,20 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
                         display_name: user.display_name ?? null,
                         bio: user.bio ?? null,
                       }}
-                      onSave={async () => {
-                        // Persistence will be wired in the next PR
-                      }}
                     />
                   </>
                 ) : (
-                  <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={false} />
+                  <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={initialIsFollowing ?? false} />
                 )}
               </div>
             </div>
 
             {user.bio ? (
-              <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{user.bio}</p>
+              <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed line-clamp-3">{user.bio}</p>
             ) : null}
 
             {/* Followers / Following / Repos / Age */}
-            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
+            <div className="mt-3 flex flex-wrap items-center gap-4 sm:gap-6 text-sm">
               <Link
                 href={`/u/${encodeURIComponent(user.handle)}/followers` as any}
                 className="text-text-primary hover:opacity-80"

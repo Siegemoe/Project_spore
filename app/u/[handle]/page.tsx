@@ -264,6 +264,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
         }}
         counts={counts}
         viewerId={viewerId}
+        initialIsFollowing={initialIsFollowing}
         reposCount={repos.length}
         githubLogin={githubLogin}
         accountAgeText={ageText}
