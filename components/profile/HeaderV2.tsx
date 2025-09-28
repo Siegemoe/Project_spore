@@ -64,15 +64,15 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
 
       {/* Header content */}
       <div className="relative z-20 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
-        <div className="-mt-16 flex items-end justify-between gap-3">
+        <div className="-mt-12 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
           <div className="shrink-0">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <h1 className="truncate text-xl sm:text-2xl font-semibold text-text-primary">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2">
+                  <h1 className="truncate text-xl sm:text-2xl leading-tight font-semibold text-text-primary">
                     {user.display_name || user.handle}
                   </h1>
                   {/* Verification badge placeholder */}
@@ -107,7 +107,7 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
                 </p>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {isSelf ? (
                   <>
                     <Button
