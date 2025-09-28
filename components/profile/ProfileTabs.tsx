@@ -29,7 +29,7 @@ export interface ProfileTabsProps {
   postsPlaceholder?: React.ReactNode;
 }
 
-const TabKeys = ["posts", "comments", "repos", "about"] as const;
+const TabKeys = ["posts", "comments", "about"] as const;
 type TabKey = typeof TabKeys[number];
 
 export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTabsProps) {
@@ -43,9 +43,6 @@ export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTa
         </TabButton>
         <TabButton active={tab === "comments"} onClick={() => setTab("comments")}>
           Comments
-        </TabButton>
-        <TabButton active={tab === "repos"} onClick={() => setTab("repos")}>
-          Repos
         </TabButton>
         <TabButton active={tab === "about"} onClick={() => setTab("about")}>
           About
@@ -69,25 +66,37 @@ export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTa
           )
         ) : tab === "comments" ? (
           posts ? <CommentsTab userId={posts.userId} /> : <div className="card p-4 text-sm text-text-secondary">No comments.</div>
-        ) : tab === "repos" ? (
-          <RepoList repos={repos} />
         ) : (
-          <div className="card p-4 space-y-2">
-            {about.bio ? (
-              <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{about.bio}</p>
-            ) : (
-              <p className="text-sm text-text-secondary">No bio yet.</p>
-            )}
-            {about.links && about.links.length > 0 ? (
-              <ul className="mt-2 list-disc list-inside text-sm">
-                {about.links.map((l, i) => (
-                  <li key={`${l.href}-${i}`}>
-                    <a className="underline underline-offset-2" href={l.href} target="_blank" rel="noreferrer">
+          <div className="space-y-3">
+            <div className="card p-4 space-y-2">
+              {about.bio ? (
+                <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{about.bio}</p>
+              ) : (
+                <p className="text-sm text-text-secondary">No bio yet.</p>
+              )}
+              {about.links && about.links.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {about.links.map((l, i) => (
+                    <a
+                      key={`${l.href}-${i}`}
+                      className="inline-flex items-center rounded-full border border-border-subtle px-3 py-1 text-sm text-text-primary hover:bg-[rgb(var(--surface-muted))]"
+                      href={l.href}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
                       {l.label || l.href}
                     </a>
-                  </li>
-                ))}
-              </ul>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+
+            {/* Repositories preview within About */}
+            {repos && repos.length > 0 ? (
+              <div className="card p-4">
+                <h3 className="mb-2 text-sm font-semibold text-text-secondary">Repositories</h3>
+                <RepoList repos={repos} />
+              </div>
             ) : null}
           </div>
         )}
