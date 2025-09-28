@@ -63,12 +63,12 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
 
       {/* Header content */}
       <div className="relative z-20 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
-        <div className="-mt-12 flex items-start gap-4">
+        <div className="-mt-14 flex items-end justify-between gap-3">
           <div className="shrink-0">
-            <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" />
+            <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-16 w-16 sm:h-20 sm:w-20" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h1 className="truncate text-xl font-semibold text-text-primary">
@@ -147,28 +147,28 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
                 className="text-text-primary hover:opacity-80"
                 aria-label="Followers"
               >
-                <strong>{counts.followers}</strong> followers
+                <strong className="font-semibold">{counts.followers}</strong> followers
               </Link>
               <Link
                 href={`/u/${encodeURIComponent(user.handle)}/following` as any}
                 className="text-text-primary hover:opacity-80"
                 aria-label="Following"
               >
-                <strong>{counts.following}</strong> following
+                <strong className="font-semibold">{counts.following}</strong> following
               </Link>
               {typeof reposCount === "number" ? (
                 <span className="text-text-secondary">
-                  <strong className="text-text-primary">{reposCount}</strong> repos
+                  <strong className="text-text-primary font-semibold">{reposCount}</strong> repos
                 </span>
               ) : null}
               {typeof contributionsTotal === "number" ? (
                 <span className="text-text-secondary">
-                  <strong className="text-text-primary">{contributionsTotal}</strong> contributions
+                  <strong className="text-text-primary font-semibold">{contributionsTotal}</strong> contributions
                 </span>
               ) : null}
               {accountAgeText ? (
                 <span className="text-text-secondary">
-                  <strong className="text-text-primary">{accountAgeText}</strong> age
+                  <strong className="text-text-primary font-semibold">{accountAgeText}</strong> age
                 </span>
               ) : null}
             </div>
