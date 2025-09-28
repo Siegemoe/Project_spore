@@ -65,11 +65,11 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
       {/* Header content */}
       <div className="relative z-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-12 sm:-mt-14 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
-          <div className="shrink-0">
+<div className="shrink-0 translate-y-[6px] sm:translate-y-[8px]">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full" />
           </div>
           <div className="min-w-0 flex-1">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+<div className="flex items-end justify-between gap-2">
               <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2">
                   <h1 className="truncate text-xl sm:text-2xl leading-tight font-semibold text-text-primary">
@@ -110,11 +110,12 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
               <div className="flex flex-col gap-2 items-stretch sm:items-end shrink-0">
                 {isSelf ? (
                   <>
-                    <Button
+<Button
                       variant="outline"
                       size="sm"
                       title="Edit Profile"
                       aria-label="Edit Profile"
+                      className="h-8 px-3 text-xs"
                       onClick={() => setOpenEdit(true)}
                     >
                       Edit Profile
