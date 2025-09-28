@@ -108,9 +108,9 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
               </div>
 
               <div className="flex flex-col gap-2 items-stretch sm:items-end shrink-0">
-                {isSelf ? (
+                {isSelf && (
                   <>
-<Button
+                    <Button
                       variant="outline"
                       size="sm"
                       title="Edit Profile"
@@ -129,14 +129,13 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
                       }}
                     />
                   </>
-                ) : (
-                  <>
-                    <FollowButton
-                      followerId={viewerId}
-                      followeeId={user.id}
-                      initialIsFollowing={initialIsFollowing ?? false}
-                    />
-                  </>
+                )}
+                {!isSelf && (
+                  <FollowButton
+                    followerId={viewerId}
+                    followeeId={user.id}
+                    initialIsFollowing={initialIsFollowing ?? false}
+                  />
                 )}
               </div>
             </div>
