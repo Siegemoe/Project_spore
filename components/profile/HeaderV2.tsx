@@ -20,16 +20,25 @@ export type HeaderV2Props = {
   viewerId?: string;
   reposCount?: number;
   githubLogin?: string | null;
+  accountAgeText?: string | undefined;
 };
 
-export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: HeaderV2Props) {
+export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, accountAgeText }: HeaderV2Props) {
   const isSelf = viewerId === user.id;
   const [openEdit, setOpenEdit] = React.useState(false);
 
   return (
     <section className="overflow-hidden rounded-2xl border border-border-subtle">
-      {/* Banner (placeholder gradient; user-customizable later) */}
-      <div className="relative h-24 w-full bg-gradient-to-r from-neutral-200 to-neutral-100 dark:from-neutral-800 dark:to-neutral-700">
+      {/* Banner (readable flair, mobile-first) */}
+      <div
+        className="relative h-28 w-full overflow-hidden"
+        style={{
+          backgroundImage:
+            "linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.2)), radial-gradient(1200px 300px at -10% -20%, rgba(16,185,129,0.12), transparent 60%), radial-gradient(900px 240px at 110% -10%, rgba(99,102,241,0.12), transparent 60%)",
+          backgroundColor: "rgb(24,24,27)",
+          backgroundSize: "cover",
+        }}
+      >
         {githubLogin ? (
           <a
             href={`https://github.com/${encodeURIComponent(githubLogin)}`}
@@ -40,26 +49,11 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: He
             title="Open GitHub profile"
           />
         ) : null}
-        {/* Back button (always visible) */}
-        <button
-          type="button"
-          onClick={() => {
-            if (typeof window !== "undefined") {
-              if (window.history.length > 1) window.history.back();
-              else window.location.href = "/";
-            }
-          }}
-          className="absolute left-3 top-3 inline-flex items-center rounded-md border border-border-subtle bg-[rgb(var(--surface))]/80 px-2 py-1 text-xs text-text-primary backdrop-blur hover:bg-[rgb(var(--surface))]"
-          aria-label="Go back"
-          title="Go back"
-        >
-          ← Back
-        </button>
       </div>
 
       {/* Header content */}
-      <div className="bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
-        <div className="-mt-10 flex items-start gap-4">
+      <div className="relative z-10 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
+        <div className="-mt-12 flex items-start gap-4">
           <div className="shrink-0">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" />
           </div>
@@ -136,8 +130,8 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: He
               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed">{user.bio}</p>
             ) : null}
 
-            {/* Followers / Following quick links */}
-            <div className="mt-3 flex items-center gap-4 text-sm">
+            {/* Followers / Following / Repos / Age */}
+            <div className="mt-3 flex flex-wrap items-center gap-4 text-sm">
               <Link
                 href={`/u/${encodeURIComponent(user.handle)}/followers` as any}
                 className="text-text-primary hover:opacity-80"
@@ -155,6 +149,11 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin }: He
               {typeof reposCount === "number" ? (
                 <span className="text-text-secondary">
                   <strong className="text-text-primary">{reposCount}</strong> repos
+                </span>
+              ) : null}
+              {accountAgeText ? (
+                <span className="text-text-secondary">
+                  <strong className="text-text-primary">{accountAgeText}</strong> age
                 </span>
               ) : null}
             </div>

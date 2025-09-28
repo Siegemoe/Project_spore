@@ -256,9 +256,10 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
         viewerId={viewerId}
         reposCount={repos.length}
         githubLogin={githubLogin}
+        accountAgeText={ageText}
       />
 
-      <StatsRow reposCount={repos.length} contributionsText={contributionsText} accountAgeText={ageText} />
+      {/* StatsRow omitted per new design; we’ll add Contributions later in header or a dedicated section */}
 
       <ProfileTabs
         repos={repos}
