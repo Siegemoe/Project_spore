@@ -65,7 +65,7 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
       {/* Header content */}
       <div className="relative z-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-12 sm:-mt-14 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
-<div className="shrink-0 translate-y-[6px] sm:translate-y-[8px]">
+<div className="shrink-0 translate-y-[10px] sm:translate-y-[12px]">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full" />
           </div>
           <div className="min-w-0 flex-1">
@@ -145,41 +145,40 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
               <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed line-clamp-3">{user.bio}</p>
             ) : null}
 
-            {/* Followers / Following / Repos on first line; Contributions / Age on second */}
-            <div className="mt-3 text-sm">
-              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-                <Link
-                  href={`/u/${encodeURIComponent(user.handle)}/followers` as any}
-                  className="text-text-primary hover:opacity-80"
-                  aria-label="Followers"
-                >
-                  <strong className="font-semibold">{counts.followers}</strong> followers
-                </Link>
-                <Link
-                  href={`/u/${encodeURIComponent(user.handle)}/following` as any}
-                  className="text-text-primary hover:opacity-80"
-                  aria-label="Following"
-                >
-                  <strong className="font-semibold">{counts.following}</strong> following
-                </Link>
-                {typeof reposCount === "number" ? (
-                  <span className="text-text-secondary">
-                    <strong className="text-text-primary font-semibold">{reposCount}</strong> repos
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-6">
-                {typeof contributionsTotal === "number" ? (
-                  <span className="text-text-secondary">
-                    <strong className="text-text-primary font-semibold">{contributionsTotal}</strong> contributions
-                  </span>
-                ) : null}
-                {accountAgeText ? (
-                  <span className="text-text-secondary">
-                    <strong className="text-text-primary font-semibold">{accountAgeText}</strong> age
-                  </span>
-                ) : null}
-              </div>
+          </div>
+          <div className="col-start-1 col-span-2 mt-3 text-sm">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+              <Link
+                href={`/u/${encodeURIComponent(user.handle)}/followers` as any}
+                className="text-text-primary hover:opacity-80"
+                aria-label="Followers"
+              >
+                <strong className="font-semibold">{counts.followers}</strong> followers
+              </Link>
+              <Link
+                href={`/u/${encodeURIComponent(user.handle)}/following` as any}
+                className="text-text-primary hover:opacity-80"
+                aria-label="Following"
+              >
+                <strong className="font-semibold">{counts.following}</strong> following
+              </Link>
+              {typeof reposCount === "number" ? (
+                <span className="text-text-secondary">
+                  <strong className="text-text-primary font-semibold">{reposCount}</strong> repos
+                </span>
+              ) : null}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-6">
+              {typeof contributionsTotal === "number" ? (
+                <span className="text-text-secondary">
+                  <strong className="text-text-primary font-semibold">{contributionsTotal}</strong> contributions
+                </span>
+              ) : null}
+              {accountAgeText ? (
+                <span className="text-text-secondary">
+                  <strong className="text-text-primary font-semibold">{accountAgeText}</strong> age
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
