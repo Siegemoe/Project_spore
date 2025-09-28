@@ -48,12 +48,31 @@ export default function EditProfileSheet({ open, onOpenChange, initial, onSave }
   async function handleSave() {
     try {
       setSaving(true);
-      await onSave?.({
-        display_name: displayName.trim() || null,
-        bio: bio.trim() || null,
-        location: location.trim() || null,
-        website: website.trim() || null,
-      });
+      // If parent provided a handler, call it; otherwise, call our API
+      if (onSave) {
+        await onSave({
+          display_name: displayName.trim() || null,
+          bio: bio.trim() || null,
+          location: location.trim() || null,
+          website: website.trim() || null,
+        });
+      } else {
+        const res = await fetch("/api/profile/update", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            displayName: displayName.trim() || undefined,
+            bio: bio.trim() || undefined,
+          }),
+        });
+        if (!res.ok) {
+          // minimal error feedback
+          console.error("Profile update failed");
+        } else {
+          // Reload to reflect changes
+          if (typeof window !== "undefined") window.location.reload();
+        }
+      }
       onOpenChange(false);
     } finally {
       setSaving(false);

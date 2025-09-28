@@ -216,9 +216,15 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   }>;
   const userPostsNextCursor = userPosts.length > 0 ? userPosts[userPosts.length - 1].id : undefined;
 
-  // Dev-only viewer id for follow button testing
-  const viewerId =
-    typeof searchParams?.uid === "string" ? (searchParams?.uid as string) : undefined;
+  // Determine viewer from server session; allow dev override via ?uid= for testing
+  const supaViewer = getServerSupabase();
+  const {
+    data: { user: viewerUser },
+  } = await supaViewer.auth.getUser();
+  let viewerId: string | undefined = viewerUser?.id ?? undefined;
+  if (!viewerId && typeof searchParams?.uid === "string") {
+    viewerId = searchParams.uid as string;
+  }
 
   let initialIsFollowing = false;
   if (viewerId) {
