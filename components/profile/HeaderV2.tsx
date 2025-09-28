@@ -30,10 +30,10 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
   const [openEdit, setOpenEdit] = React.useState(false);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-border-subtle">
+<section className="relative w-full overflow-hidden">
       {/* Banner (readable flair, mobile-first) */}
       <div
-        className="relative z-0 h-40 sm:h-44 md:h-48 w-full overflow-hidden bg-white"
+        className="relative z-0 h-52 sm:h-60 w-full overflow-hidden bg-white"
         style={{
           backgroundImage:
             "linear-gradient(135deg, rgba(16,185,129,0.9), rgba(5,150,105,0.95)), radial-gradient(600px 180px at -10% -20%, rgba(255,255,255,0.9), transparent 60%), radial-gradient(800px 220px at 110% -10%, rgba(255,255,255,0.7), transparent 60%)",
@@ -63,8 +63,8 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
       </div>
 
       {/* Header content */}
-      <div className="relative z-20 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
-        <div className="-mt-12 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
+      <div className="relative z-20">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-16 sm:-mt-20 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
           <div className="shrink-0">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full" />
           </div>

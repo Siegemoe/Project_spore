@@ -252,36 +252,40 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const contributionsText = undefined; // TODO: posts + comments count endpoint
 
   return (
-    <div className="container py-10 space-y-6 max-w-3xl">
-      <HeaderV2
-        user={{
-          id: user.id,
-          handle: user.handle!,
-          display_name: user.display_name,
-          avatar_url: user.avatar_url,
-          bio: user.bio,
-          created_at: (user as any).created_at ?? null,
-        }}
-        counts={counts}
-        viewerId={viewerId}
-        initialIsFollowing={initialIsFollowing}
-        reposCount={repos.length}
-        githubLogin={githubLogin}
-        accountAgeText={ageText}
-        contributionsTotal={contributions.total}
-      />
+    <>
+      <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen">
+        <HeaderV2
+          user={{
+            id: user.id,
+            handle: user.handle!,
+            display_name: user.display_name,
+            avatar_url: user.avatar_url,
+            bio: user.bio,
+            created_at: (user as any).created_at ?? null,
+          }}
+          counts={counts}
+          viewerId={viewerId}
+          initialIsFollowing={initialIsFollowing}
+          reposCount={repos.length}
+          githubLogin={githubLogin}
+          accountAgeText={ageText}
+          contributionsTotal={contributions.total}
+        />
+      </div>
 
-      {/* StatsRow omitted per new design; we’ll add Contributions later in header or a dedicated section */}
+      <div className="container py-6 space-y-6 max-w-3xl">
+        {/* StatsRow omitted per new design; we’ll add Contributions later in header or a dedicated section */}
 
-      <ProfileTabs
-        repos={repos}
-        about={{ bio: user.bio ?? null }}
-        posts={{
-          userId: user.id,
-          initialItems: userPosts,
-          initialNextCursor: userPostsNextCursor,
-        }}
-      />
-    </div>
+        <ProfileTabs
+          repos={repos}
+          about={{ bio: user.bio ?? null }}
+          posts={{
+            userId: user.id,
+            initialItems: userPosts,
+            initialNextCursor: userPostsNextCursor,
+          }}
+        />
+      </div>
+    </>
   );
 }
