@@ -32,12 +32,12 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
     <section className="overflow-hidden rounded-2xl border border-border-subtle">
       {/* Banner (readable flair, mobile-first) */}
       <div
-        className="relative h-28 w-full overflow-hidden"
+        className="relative z-0 h-36 w-full overflow-hidden bg-white"
         style={{
           backgroundImage:
-            "linear-gradient(to bottom, rgba(0,0,0,0.45), rgba(0,0,0,0.2)), radial-gradient(1200px 300px at -10% -20%, rgba(16,185,129,0.12), transparent 60%), radial-gradient(900px 240px at 110% -10%, rgba(99,102,241,0.12), transparent 60%)",
-          backgroundColor: "rgb(24,24,27)",
+            "linear-gradient(135deg, rgba(16,185,129,0.9), rgba(5,150,105,0.95)), radial-gradient(600px 180px at -10% -20%, rgba(255,255,255,0.9), transparent 60%), radial-gradient(800px 220px at 110% -10%, rgba(255,255,255,0.7), transparent 60%)",
           backgroundSize: "cover",
+          backgroundPosition: "center",
         }}
       >
         {githubLogin ? (
@@ -45,15 +45,24 @@ export function HeaderV2({ user, counts, viewerId, reposCount, githubLogin, acco
             href={`https://github.com/${encodeURIComponent(githubLogin)}`}
             target="_blank"
             rel="noreferrer"
-            className="absolute inset-0"
+            className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/20 px-2 py-1 text-xs text-white backdrop-blur hover:bg-white/30"
             aria-label="Open GitHub profile"
             title="Open GitHub profile"
-          />
+            style={{ zIndex: 10 }}
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true">
+              <path
+                fill="currentColor"
+                d="M8 0C3.58 0 0 3.64 0 8.13c0 3.6 2.29 6.65 5.47 7.73.4.08.55-.18.55-.39 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.16-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.84.72 1.21 1.87.87 2.33.66.07-.53.28-.87.51-1.07-1.78-.2-3.64-.9-3.64-4.01 0-.89.31-1.62.82-2.19-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.84.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.06 2.2-.84 2.2-.84.44 1.1.16 1.92.08 2.12.51.57.82 1.3.82 2.19 0 3.12-1.87 3.8-3.65 4 .29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.47.55.39A8.14 8.14 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z"
+              />
+            </svg>
+            @{githubLogin}
+          </a>
         ) : null}
       </div>
 
       {/* Header content */}
-      <div className="relative z-10 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
+      <div className="relative z-20 bg-[rgb(var(--surface))] px-4 pb-4 pt-2 sm:px-6">
         <div className="-mt-12 flex items-start gap-4">
           <div className="shrink-0">
             <Avatar src={user.avatar_url ?? undefined} name={user.display_name || user.handle || "@"} size="lg" />
