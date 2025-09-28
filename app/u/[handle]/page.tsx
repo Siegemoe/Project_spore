@@ -192,6 +192,10 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const repos = gitAccount?.github_login ? await fetchPublicRepos(gitAccount.github_login, 10) : [];
   const githubLogin = gitAccount?.github_login ?? null;
 
+  // Contribution counts (posts + comments)
+  const { getContributionCounts } = await import("@/features/profile/actions");
+  const contributions = await getContributionCounts(user.id);
+
   // Initial page of this user's posts (newest first)
   const { data: upItems, error: upErr } = await admin
     .from("posts")

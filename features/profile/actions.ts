@@ -30,3 +30,28 @@ export async function updateProfile(input: UpdateInput) {
   }
   return { ok: true };
 }
+
+/**
+ * Returns contribution counts for a user.
+ * - posts: number of posts authored
+ * - comments: number of comments authored
+ * - total: posts + comments
+ */
+export async function getContributionCounts(userId: string) {
+  const admin = getSupabaseAdmin();
+
+  const postsRes = await admin
+    .from("posts")
+    .select("*", { head: true, count: "exact" })
+    .eq("user_id", userId);
+
+  const commentsRes = await admin
+    .from("comments")
+    .select("*", { head: true, count: "exact" })
+    .eq("user_id", userId);
+
+  const posts = (postsRes as any)?.count ?? 0;
+  const comments = (commentsRes as any)?.count ?? 0;
+
+  return { posts, comments, total: posts + comments };
+}
