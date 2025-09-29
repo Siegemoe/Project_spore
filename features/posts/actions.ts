@@ -9,7 +9,7 @@ import {
   ALLOWED_VIDEO_TYPES,
   contentTypeToExt,
 } from "@/lib/config";
-import { MediaType, FeedQuery } from "./contract";
+import { MediaType, FeedQuery, UploadTargetInput, CreatePostInput } from "./contract";
 
 /**
  * NOTE ABOUT AUTH:
@@ -19,12 +19,6 @@ import { MediaType, FeedQuery } from "./contract";
  * lookups before enabling posting in production.
  */
 
-const UploadTargetInput = z.object({
-  userId: z.string().uuid(),
-  mediaType: MediaType,
-  contentType: z.string().min(1),
-  size: z.number().int().positive().max(MAX_UPLOAD_BYTES),
-});
 
 /**
  * Returns a storage object path the client can upload to.
@@ -58,12 +52,6 @@ export async function getUploadTarget(input: z.infer<typeof UploadTargetInput>) 
   };
 }
 
-const CreatePostInput = z.object({
-  userId: z.string().uuid(),
-  caption: z.string().trim().max(2000).optional(),
-  objectPath: z.string().min(1).optional(),
-  mediaType: MediaType.optional(),
-});
 
 /**
  * Creates a post row after the client uploaded the file to storage.

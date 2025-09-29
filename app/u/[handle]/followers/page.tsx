@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
+import { Avatar } from "@/components/ui/Avatar";
 
 type PageProps = { params: { handle: string } };
 
@@ -41,19 +42,20 @@ export default async function FollowersPage({ params }: PageProps) {
     .eq("followee_id", user.id);
 
   const followerIds = Array.from(new Set((rows ?? []).map((r: any) => r.follower_id))).filter(Boolean);
-  let followers: Array<{ id: string; handle: string | null; display_name: string | null }> = [];
+  let followers: Array<{ id: string; handle: string | null; display_name: string | null; avatar_url: string | null }> = [];
 
   if (followerIds.length > 0) {
     const { data: users } = await admin
       .from("users")
-      .select("id, handle, display_name")
+      .select("id, handle, display_name, avatar_url")
       .in("id", followerIds);
 
     followers =
       (users ?? []).map((u: any) => ({
         id: u.id as string,
         handle: (u.handle ?? null) as string | null,
-        display_name: (u.display_name ?? null) as string | null
+        display_name: (u.display_name ?? null) as string | null,
+        avatar_url: (u.avatar_url ?? null) as string | null
       })) ?? [];
   }
 
@@ -82,10 +84,17 @@ export default async function FollowersPage({ params }: PageProps) {
         <ul className="space-y-2">
           {followers.map((f) => (
             <li key={f.id} className="card p-3 sm:p-4">
-              <a className="underline underline-offset-2" href={`/u/${encodeURIComponent(f.handle ?? "")}`}>
-                {f.display_name || f.handle || f.id}
+              <a href={`/u/${encodeURIComponent(f.handle ?? "")}`} className="flex items-center gap-3">
+                <Avatar src={f.avatar_url ?? undefined} name={f.display_name || f.handle || "@"} size="sm" />
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-text-primary truncate">
+                    {f.display_name || f.handle || f.id}
+                  </div>
+                  {f.handle ? (
+                    <div className="text-xs text-text-secondary truncate">@{f.handle}</div>
+                  ) : null}
+                </div>
               </a>
-              {f.handle ? <span className="ml-2 text-text-secondary">@{f.handle}</span> : null}
             </li>
           ))}
         </ul>

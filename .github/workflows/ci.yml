@@ -2,14 +2,14 @@ name: CI
 
 on:
   pull_request:
+    branches: [ "staging", "main" ]
   push:
-    branches:
-      - main
-      - staging
+    branches: [ "staging" ]
 
 jobs:
-  build:
+  build-and-verify:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,15 +17,17 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: npm
+          node-version: 18
+          cache: "npm"
 
-      - name: Install dependencies
+      - name: Install
         run: npm ci
-
-      - name: Typecheck and Build
-        run: |
-          npm run build
 
       - name: Lint
         run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build

@@ -78,6 +78,11 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
     setFile(f);
   }
 
+  function clearSelection() {
+    setFile(null);
+    setNote(null);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (busy) return;
@@ -161,6 +166,21 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
           />
         )}
       </div>
+
+      {file && (
+        <div className="flex items-center gap-2 text-xs text-neutral-600">
+          <span className="truncate max-w-[50%]">{file.name}</span>
+          <span>({(file.size / (1024 * 1024)).toFixed(1)}MB)</span>
+          <button
+            type="button"
+            onClick={clearSelection}
+            disabled={busy}
+            className="rounded border border-neutral-300 px-2 py-1 disabled:opacity-60"
+          >
+            Clear
+          </button>
+        </div>
+      )}
 
       <div className="flex flex-col gap-2">
         <label className="text-sm font-medium" htmlFor="caption">
