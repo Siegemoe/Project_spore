@@ -59,8 +59,32 @@ Auth (Phase 0 minimal):
 - Providers: GitHub, Google, Email (configure in Supabase Dashboard -> Authentication -> Providers)
 - Allowed redirects should include your dev and Vercel preview/prod URLs.
 
-Storage:
-- Add a public bucket later (Stage 1). `next.config.js` allows images from `aehiqptugvakjtlvuixb.supabase.co`.
+Storage (Phase 1):
+- Public bucket: media-public
+  - Create via SQL (recommended): run the migration:
+    - File: db/migrations/phase1/0002_storage_bucket.sql
+    - This is idempotent and will create a public bucket named media-public if missing.
+  - Apply RLS policies:
+    - File: db/policies/phase1/0002_storage_policies.sql
+    - Allows public READ on media-public and authenticated WRITE limited to own prefix {auth.uid()}/...
+- Images config: next.config.js already allows images from aehiqptugvakjtlvuixb.supabase.co
+- CORS (Supabase Dashboard → Storage → Settings):
+  - Allowed origins: add your local and deployed app URLs (e.g., http://localhost:3000, https://project-spore.vercel.app)
+  - Allowed methods: GET, PUT, POST, DELETE
+  - Allowed headers: Content-Type, Authorization
+  - Expose headers: ETag
+  - Max age: 3600 (or your preference)
+
+Troubleshooting (policies)
+- If running db/policies/phase1/0002_storage_policies.sql shows:
+  - ERROR: 42501: must be owner of table objects
+- Cause: creating/dropping policies on storage.objects requires the table owner role (postgres/supabase_admin). 
+- Fix (any one of these):
+  1) Supabase Dashboard → SQL Editor → Run as owner (toggle the “Run as owner” / service role option) and re‑execute the file.
+  2) Supabase Dashboard → Storage → Policies UI: create equivalent policies manually for bucket media-public:
+     - Public Read (SELECT) when bucket_id = 'media-public'
+     - Authenticated Insert/Update/Delete restricted to objects whose name starts with auth.uid() || '/'
+  3) If using Supabase CLI/migrations, execute the policy SQL using the service_role connection string.
 
 ## OpenAPI (contract-first)
 

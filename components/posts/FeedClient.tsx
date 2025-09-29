@@ -23,6 +23,7 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
   const [cursor, setCursor] = useState<string | undefined>(initialNextCursor);
   const [loading, setLoading] = useState(false);
   const [viewerId, setViewerId] = useState<string | undefined>(undefined);
+  const [error, setError] = useState<string | null>(null);
 
   // When new posts arrive via realtime while user is browsing, stage them behind a banner
   const [staged, setStaged] = useState<FeedItem[]>([]);
@@ -67,6 +68,7 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
     if (!cursor || loading) return;
     try {
       setLoading(true);
+      setError(null);
       const qs = new URLSearchParams();
       qs.set("cursor", cursor);
       qs.set("limit", "20");
@@ -77,7 +79,7 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
       setItems((prev) => [...prev, ...(data.items as FeedItem[])]);
       setCursor(data.nextCursor || undefined);
     } catch {
-      // minimal UI: leave cursor as-is to allow retry
+      setError("Failed to load more. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -126,6 +128,22 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
           >
             {stagedCount} new {stagedCount === 1 ? "post" : "posts"} — tap to view
           </button>
+        </div>
+      ) : null}
+
+      {error ? (
+        <div role="alert" className="mx-auto w-full max-w-2xl rounded-md border border-red-300 bg-red-50 text-red-800 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm">{error}</span>
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loading || !hasMore}
+              className="rounded border border-red-300 bg-white/60 px-2 py-1 text-sm disabled:opacity-60"
+            >
+              Try again
+            </button>
+          </div>
         </div>
       ) : null}
 

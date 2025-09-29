@@ -205,7 +205,11 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
         >
           {busy ? "Posting…" : "Post"}
         </button>
-        {note && <span className="text-sm text-neutral-600">{note}</span>}
+        {note && (
+          <span role="status" aria-live="polite" className="text-sm text-neutral-600">
+            {note}
+          </span>
+        )}
         {!viewerId && (
           <span className="text-sm text-neutral-600">
             Sign in to post.{" "}
