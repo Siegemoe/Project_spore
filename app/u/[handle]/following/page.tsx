@@ -21,11 +21,20 @@ export default async function FollowingPage({ params }: PageProps) {
   }
 
   // Resolve user id by handle
-  const { data: user } = await admin
+  const { data: user, error: uErr } = await admin
     .from("users")
     .select("id, handle, display_name")
     .ilike("handle", handle)
     .maybeSingle();
+
+  if (uErr) {
+    return (
+      <div className="container py-10 max-w-3xl">
+        <h1 className="text-2xl font-semibold text-text-primary">Following</h1>
+        <p className="text-sm text-text-secondary">Unable to load following for @{handle}.</p>
+      </div>
+    );
+  }
 
   if (!user) {
     return (
@@ -36,10 +45,19 @@ export default async function FollowingPage({ params }: PageProps) {
   }
 
   // List following -> join follows(followee_id -> users.id) where follower_id = user.id
-  const { data: rows } = await admin
+  const { data: rows, error: fErr } = await admin
     .from("follows")
     .select("followee_id")
     .eq("follower_id", user.id);
+
+  if (fErr) {
+    return (
+      <div className="container py-10 space-y-4 max-w-3xl">
+        <h1 className="text-2xl font-semibold text-text-primary">@{user.handle} • Following</h1>
+        <p className="text-sm text-text-secondary">We couldn’t load following right now. Please try again.</p>
+      </div>
+    );
+  }
 
   const followeeIds = Array.from(new Set((rows ?? []).map((r: any) => r.followee_id))).filter(Boolean);
   let followees: Array<{ id: string; handle: string | null; display_name: string | null; avatar_url: string | null }> = [];
