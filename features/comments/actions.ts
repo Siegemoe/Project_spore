@@ -11,17 +11,21 @@ export async function createComment(input: CreateInput) {
   const parsed = CreateInput.parse(input);
   const admin = getSupabaseAdmin();
 
-  const { error } = await admin.from("comments").insert({
-    post_id: parsed.postId,
-    user_id: parsed.userId,
-    body: parsed.body,
-  });
+  const { data, error } = await admin
+    .from("comments")
+    .insert({
+      post_id: parsed.postId,
+      user_id: parsed.userId,
+      body: parsed.body,
+    })
+    .select("id, post_id, user_id, body, created_at")
+    .single();
 
   if (error) {
     throw new Error(`Create comment failed: ${error.message}`);
   }
 
-  return { ok: true };
+  return { item: data };
 }
 
 export async function listComments(postId: string, limit = 50) {

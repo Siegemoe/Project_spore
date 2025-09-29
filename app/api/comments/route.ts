@@ -34,8 +34,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "postId, userId, and text are required" }, { status: 400 });
     }
 
-    await createComment({ postId, userId, body: text });
-    return NextResponse.json({ ok: true });
+    const { item } = await createComment({ postId, userId, body: text });
+    return NextResponse.json({ ok: true, item });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Failed to create comment" }, { status: 500 });
   }

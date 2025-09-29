@@ -9,7 +9,7 @@ export function RepoList({ repos }: { repos: PublicRepo[] }) {
   }
   return (
     <ul className="space-y-2">
-      {repos.map((r) => (
+      {repos.slice(0, 10).map((r) => (
         <li key={r.fullName} className="card p-3 sm:p-4">
           <div className="flex items-center justify-between gap-4">
             <div className="min-w-0">
