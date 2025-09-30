@@ -5,7 +5,7 @@ import { TopBar } from "@/components/nav/TopBar";
 import { MobileTabBar } from "@/components/nav/MobileTabBar";
 import { Sheet } from "@/components/ui/Sheet";
 import dynamic from "next/dynamic";
-import { CommentSheet, useGlobalCommentEvents } from "@/components/comments/CommentSheet";
+import { CommentSheet } from "@/components/comments/CommentSheet";
 
 // Lazy-load Composer to keep initial shell light
 const Composer = dynamic(() => import("@/components/posts/Composer"), { ssr: false });
@@ -13,7 +13,19 @@ const Composer = dynamic(() => import("@/components/posts/Composer"), { ssr: fal
 export function AppChrome({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
   const [commentPostId, setCommentPostId] = React.useState<string | null>(null);
-  useGlobalCommentEvents((postId) => setCommentPostId(postId));
+
+  React.useEffect(() => {
+    function handleOpenComments(event: Event) {
+      const custom = event as CustomEvent<{ postId?: string }>;
+      const nextId = custom.detail?.postId ?? null;
+      setCommentPostId(nextId);
+    }
+
+    window.addEventListener("spore:openComments", handleOpenComments as EventListener);
+    return () => {
+      window.removeEventListener("spore:openComments", handleOpenComments as EventListener);
+    };
+  }, []);
 
   return (
     <>

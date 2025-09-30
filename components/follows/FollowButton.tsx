@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { toggleFollow } from "@/features/follows/actions";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/Button";
@@ -15,8 +15,8 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
   const [busy, setBusy] = useState(false);
   const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [viewerId, setViewerId] = useState<string | undefined>(followerId);
+  const [isPending, startTransition] = useTransition();
 
-  // Auto-detect viewer from Supabase auth if not provided
   useEffect(() => {
     let cancelled = false;
     async function loadUser() {
@@ -36,22 +36,24 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
     };
   }, [viewerId]);
 
-  const disabled = !viewerId || busy;
+  const disabled = !viewerId || busy || isPending;
 
-  async function onToggle() {
-    if (!viewerId) return;
-    try {
-      setBusy(true);
-      // optimistic
-      setIsFollowing((v) => !v);
-      const res = await toggleFollow({ followerId: viewerId, followeeId });
-      setIsFollowing(res.isFollowing);
-    } catch {
-      // revert optimistic on error
-      setIsFollowing(initialIsFollowing);
-    } finally {
-      setBusy(false);
-    }
+  function onToggle() {
+    if (!viewerId || busy) return;
+    setBusy(true);
+    const optimistic = !isFollowing;
+    setIsFollowing(optimistic);
+
+    startTransition(async () => {
+      try {
+        const res = await toggleFollow({ followeeId });
+        setIsFollowing(res.isFollowing);
+      } catch {
+        setIsFollowing(initialIsFollowing);
+      } finally {
+        setBusy(false);
+      }
+    });
   }
 
   return (
@@ -63,7 +65,7 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
       size="sm"
       title={!viewerId ? "Sign in to follow" : undefined}
     >
-      {busy ? "..." : isFollowing ? "Following" : "Follow"}
+      {busy || isPending ? "..." : isFollowing ? "Following" : "Follow"}
     </Button>
   );
 }

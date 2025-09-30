@@ -1,14 +1,13 @@
--- Introspection helper: returns RLS status and policies for storage.objects
--- Safe to run multiple times (CREATE OR REPLACE).
-
+-- Phase 1: install debug helper to inspect storage.objects RLS policies
+-- Uses pg_policies (non-superuser) and pg_class to report status. Idempotent.
 create or replace function public.debug_storage_policies()
 returns jsonb
 language sql
 security definer
-set search_path = pg_catalog, public
+set search_path = public
 as $$
   with obj as (
-    select c.relrowsecurity as rls_enabled, c.oid as relid
+    select c.relrowsecurity as rls_enabled
     from pg_class c
     join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = 'storage' and c.relname = 'objects'
@@ -16,27 +15,27 @@ as $$
   ),
   pol as (
     select
-      p.polname,
-      p.polcmd,
-      pg_get_expr(p.polqual, p.polrelid)       as using_expr,
-      pg_get_expr(p.polwithcheck, p.polrelid)  as with_check_expr,
-      (select jsonb_agg(r.rolname order by r.rolname)
-         from pg_authid r
-        where r.oid = any(p.polroles))         as roles
-    from pg_policy p
-    join obj o on o.relid = p.polrelid
+      policyname as name,
+      cmd        as command,
+      qual       as using_expr,
+      with_check as with_check_expr,
+      roles
+    from pg_policies
+    where schemaname = 'storage' and tablename = 'objects'
   )
   select jsonb_build_object(
     'rls_enabled', coalesce((select rls_enabled from obj), false),
-    'policies',    coalesce((select jsonb_agg(jsonb_build_object(
-                      'name', polname,
-                      'command', polcmd,
-                      'using', using_expr,
-                      'with_check', with_check_expr,
-                      'roles', roles
-                    ) order by polname) from pol), '[]'::jsonb)
+    'policies',    coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'name', name,
+        'command', command,
+        'using', using_expr,
+        'with_check', with_check_expr,
+        'roles', roles
+      ) order by name)
+      from pol
+    ), '[]'::jsonb)
   );
 $$;
 
--- Allow calling from app server or locally; read-only metadata
 grant execute on function public.debug_storage_policies() to anon, authenticated, service_role;

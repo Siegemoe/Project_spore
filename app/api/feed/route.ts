@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   const limit = Math.min(Math.max(Number(limitParam ?? 20) || 20, 1), 50);
 
   try {
-    const { items, nextCursor } = await listFeed({ cursor, limit, userId: viewer || undefined });
+    const { items, nextCursor } = await listFeed({ cursor, limit, viewerId: viewer || undefined });
     return NextResponse.json({ items, nextCursor });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "Failed to fetch feed" }, { status: 500 });

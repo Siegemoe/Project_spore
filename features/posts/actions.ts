@@ -4,106 +4,119 @@ import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import {
   MEDIA_BUCKET,
-  MAX_UPLOAD_BYTES,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_VIDEO_TYPES,
   contentTypeToExt,
 } from "@/lib/config";
-import { MediaType, FeedQuery, UploadTargetInput, CreatePostInput } from "./contract";
+import { BadRequestError, SupabaseError } from "@/lib/errors";
+import { requireUser } from "@/lib/auth/session";
+import { FeedQuery, UploadTargetInput, CreatePostInput } from "./contract";
 
-/**
- * NOTE ABOUT AUTH:
- * For Phase 1 M2 we will derive userId from the authenticated session.
- * For now these actions accept a userId explicitly to keep the skeleton simple
- * and unblock UI wiring. We will replace userId params with server-side session
- * lookups before enabling posting in production.
- */
+type ListFeedOptions = z.infer<typeof FeedQuery> & {
+  viewerId?: string;
+};
 
-
-/**
- * Returns a storage object path the client can upload to.
- * Upload itself is performed client-side using the anon key.
- */
 export async function getUploadTarget(input: z.infer<typeof UploadTargetInput>) {
-  const parsed = UploadTargetInput.parse(input);
+  const parsed = UploadTargetInput.safeParse(input);
+  if (!parsed.success) {
+    throw new BadRequestError("Invalid upload target request.", {
+      issues: parsed.error.issues,
+    });
+  }
 
-  const allowed =
-    (parsed.mediaType === "image" && (ALLOWED_IMAGE_TYPES as readonly string[]).includes(parsed.contentType)) ||
-    (parsed.mediaType === "video" && (ALLOWED_VIDEO_TYPES as readonly string[]).includes(parsed.contentType));
+  const payload = parsed.data;
+  const { id: userId } = await requireUser();
 
-  if (!allowed) {
-    throw new Error("Unsupported content type for selected media type");
+  const isAllowed =
+    (payload.mediaType === "image" &&
+      (ALLOWED_IMAGE_TYPES as readonly string[]).includes(payload.contentType)) ||
+    (payload.mediaType === "video" &&
+      (ALLOWED_VIDEO_TYPES as readonly string[]).includes(payload.contentType));
+
+  if (!isAllowed) {
+    throw new BadRequestError("Unsupported content type for selected media type.", {
+      contentType: payload.contentType,
+      mediaType: payload.mediaType,
+    });
   }
 
   const now = new Date();
   const yyyy = String(now.getUTCFullYear());
   const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
-
-  // Minimal random segment; in final pass we may import a uuid lib.
   const rand = Math.random().toString(36).slice(2, 10);
-  const ext = contentTypeToExt(parsed.contentType);
-  const objectPath = `${parsed.userId}/${yyyy}/${mm}/${rand}.${ext}`;
+  const ext = contentTypeToExt(payload.contentType);
+  const objectPath = `${userId}/${yyyy}/${mm}/${rand}.${ext}`;
 
   return {
     bucket: MEDIA_BUCKET,
     objectPath,
-    contentType: parsed.contentType,
-    maxBytes: MAX_UPLOAD_BYTES,
+    contentType: payload.contentType,
+    maxBytes: payload.size,
   };
 }
 
-
-/**
- * Creates a post row after the client uploaded the file to storage.
- * media_url will point to the bucket public URL if objectPath is provided.
- */
 export async function createPost(input: z.infer<typeof CreatePostInput>) {
-  const parsed = CreatePostInput.parse(input);
+  const parsed = CreatePostInput.safeParse(input);
+  if (!parsed.success) {
+    throw new BadRequestError("Invalid post payload.", {
+      issues: parsed.error.issues,
+    });
+  }
+
+  const payload = parsed.data;
+  const { id: userId } = await requireUser();
 
   let mediaUrl: string | null = null;
-  if (parsed.objectPath) {
+  if (payload.objectPath) {
     const admin = getSupabaseAdmin();
-    const pub = admin.storage.from(MEDIA_BUCKET).getPublicUrl(parsed.objectPath);
+    const pub = admin.storage.from(MEDIA_BUCKET).getPublicUrl(payload.objectPath);
     mediaUrl = pub.data.publicUrl ?? null;
   }
 
   const admin = getSupabaseAdmin();
   const { error } = await admin.from("posts").insert({
-    user_id: parsed.userId,
-    caption: parsed.caption ?? null,
+    user_id: userId,
+    caption: payload.caption ?? null,
     media_url: mediaUrl,
-    media_type: parsed.mediaType ?? null,
+    media_type: payload.mediaType ?? null,
   });
 
   if (error) {
-    throw new Error(`Failed to create post: ${error.message}`);
+    throw new SupabaseError(`Failed to create post: ${error.message}`, {
+      hint: error.hint,
+      details: error.details,
+    });
   }
 
   return { ok: true };
 }
 
-/**
- * Returns a minimal feed page. This is a placeholder skeleton to keep the
- * structure compiling; full personalization/joins will be completed in the next PR.
- */
-export async function listFeed(input: z.infer<typeof FeedQuery> & { userId?: string }) {
-  const parsed = FeedQuery.parse(input);
+export async function listFeed(input: ListFeedOptions) {
+  const parsed = FeedQuery.safeParse(input);
+  if (!parsed.success) {
+    throw new BadRequestError("Invalid feed query.", {
+      issues: parsed.error.issues,
+    });
+  }
 
-  // Placeholder: newest first, simple page without personalization.
+  const { cursor, limit } = parsed.data;
+  const viewerId = input.viewerId;
   const admin = getSupabaseAdmin();
 
-  // M3: personalize feed to self + followees when viewer is provided
   let allowedAuthors: string[] | null = null;
-  if (input.userId) {
-    const viewerId = input.userId;
-    const { data: followees, error: fErr } = await admin
+  if (viewerId) {
+    const { data: followees, error: followError } = await admin
       .from("follows")
       .select("followee_id")
       .eq("follower_id", viewerId);
 
-    if (fErr) {
-      throw new Error(`Failed to fetch followees: ${fErr.message}`);
+    if (followError) {
+      throw new SupabaseError(`Failed to fetch followees: ${followError.message}`, {
+        hint: followError.hint,
+        details: followError.details,
+      });
     }
+
     allowedAuthors = [viewerId, ...(followees?.map((f: any) => f.followee_id) ?? [])];
   }
 
@@ -111,44 +124,57 @@ export async function listFeed(input: z.infer<typeof FeedQuery> & { userId?: str
     .from("posts")
     .select("id,user_id,caption,media_url,media_type,created_at", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(parsed.limit);
+    .limit(limit);
 
   if (allowedAuthors && allowedAuthors.length > 0) {
     query = query.in("user_id", allowedAuthors);
   }
 
-  if (parsed.cursor) {
-    // Simple cursor by created_at cutoff; a stable (created_at,id) pair can be added later.
-    const { data: cur } = await admin
+  if (cursor) {
+    const { data: cursorRow, error: cursorError } = await admin
       .from("posts")
       .select("created_at")
-      .eq("id", parsed.cursor)
+      .eq("id", cursor)
       .limit(1)
       .maybeSingle();
-    if (cur?.created_at) {
-      query = query.lt("created_at", cur.created_at);
+
+    if (cursorError) {
+      throw new SupabaseError(`Failed to resolve feed cursor: ${cursorError.message}`, {
+        hint: cursorError.hint,
+        details: cursorError.details,
+      });
+    }
+
+    if (cursorRow?.created_at) {
+      query = query.lt("created_at", cursorRow.created_at);
     }
   }
 
   const { data, error } = await query;
   if (error) {
-    throw new Error(`Failed to fetch feed: ${error.message}`);
+    throw new SupabaseError(`Failed to fetch feed: ${error.message}`, {
+      hint: error.hint,
+      details: error.details,
+    });
   }
 
-  // Enrich with user display fields for better PostCard headers (no breaking change: fields are optional)
   const rows = data ?? [];
   const userIds = Array.from(new Set(rows.map((r: any) => r.user_id))).filter(Boolean) as string[];
 
-  let usersById: Record<string, { handle: string | null; display_name: string | null; avatar_url: string | null }> = {};
+  let usersById: Record<
+    string,
+    { handle: string | null; display_name: string | null; avatar_url: string | null }
+  > = {};
+
   if (userIds.length > 0) {
-    const { data: users, error: uErr } = await admin
+    const { data: users, error: usersError } = await admin
       .from("users")
       .select("id, handle, display_name, avatar_url")
       .in("id", userIds);
 
-    if (uErr) {
-      // Non-fatal — return posts without user enrichment
-      usersById = {};
+    if (usersError) {
+      // eslint-disable-next-line no-console
+      console.warn("User enrichment failed", usersError);
     } else {
       for (const u of users ?? []) {
         usersById[u.id as string] = {

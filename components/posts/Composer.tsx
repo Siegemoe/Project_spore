@@ -105,7 +105,6 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
 
       // 1) Ask server for upload target (objectPath)
       const target = await getUploadTarget({
-        userId: viewerId,
         mediaType,
         contentType,
         size: file.size,
@@ -119,7 +118,6 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
 
       // 3) Create post row referencing the objectPath
       await createPost({
-        userId: viewerId,
         caption: caption.trim() || undefined,
         objectPath: target.objectPath,
         mediaType,

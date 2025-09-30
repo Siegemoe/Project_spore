@@ -1,42 +1,59 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { listComments, createComment } from "@/features/comments/actions";
+import { ok, handleApiError } from "@/lib/api/response";
+
+const QuerySchema = z.object({
+  postId: z.string().uuid(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+});
+
+const BodySchema = z.object({
+  postId: z.string().uuid(),
+  text: z.string().trim().min(1).max(2000),
+});
 
 export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const postId = searchParams.get("postId") || undefined;
-  const limitParam = searchParams.get("limit");
-  const limit = Math.min(Math.max(Number(limitParam ?? 50) || 50, 1), 100);
-
-  if (!postId) {
-    return NextResponse.json({ error: "postId is required" }, { status: 400 });
-  }
-
   try {
+    const { searchParams } = new URL(req.url);
+    const parsed = QuerySchema.safeParse({
+      postId: searchParams.get("postId"),
+      limit: searchParams.get("limit"),
+    });
+
+    if (!parsed.success) {
+      return handleApiError(
+        new (await import("@/lib/errors")).BadRequestError("Invalid query.", {
+          issues: parsed.error.issues,
+        })
+      );
+    }
+
+    const { postId, limit } = parsed.data;
     const items = await listComments(postId, limit);
-    return NextResponse.json({ items });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Failed to fetch comments" }, { status: 500 });
+    return ok({ items });
+  } catch (error) {
+    return handleApiError(error);
   }
 }
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    /**
-     * body = { postId: string, userId: string, text: string }
-     * NOTE: In a later milestone we will derive userId from a server session.
-     */
-    const postId = String(body?.postId || "");
-    const userId = String(body?.userId || "");
-    const text = String(body?.text || "");
+    const json = await req.json();
+    const parsed = BodySchema.safeParse(json);
 
-    if (!postId || !userId || !text) {
-      return NextResponse.json({ error: "postId, userId, and text are required" }, { status: 400 });
+    if (!parsed.success) {
+      return handleApiError(
+        new (await import("@/lib/errors")).BadRequestError("Invalid payload.", {
+          issues: parsed.error.issues,
+        })
+      );
     }
 
-    const { item } = await createComment({ postId, userId, body: text });
-    return NextResponse.json({ ok: true, item });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Failed to create comment" }, { status: 500 });
+    const { postId, text } = parsed.data;
+    const { item } = await createComment({ postId, body: text });
+    return ok({ ok: true, item });
+  } catch (error) {
+    return handleApiError(error);
   }
 }

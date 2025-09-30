@@ -24,7 +24,6 @@ export type FeedQuery = z.infer<typeof FeedQuery>;
  * Keep all zod schemas colocated here per build rules.
  */
 export const UploadTargetInput = z.object({
-  userId: z.string().uuid(),
   mediaType: MediaType,
   contentType: z.string().min(1),
   size: z.number().int().positive().max(MAX_UPLOAD_BYTES),
@@ -32,7 +31,6 @@ export const UploadTargetInput = z.object({
 export type UploadTargetInput = z.infer<typeof UploadTargetInput>;
 
 export const CreatePostInput = z.object({
-  userId: z.string().uuid(),
   caption: z.string().trim().max(2000).optional(),
   objectPath: z.string().min(1).optional(),
   mediaType: MediaType.optional(),

@@ -2,49 +2,61 @@
 
 import { z } from "zod";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { requireUser } from "@/lib/auth/session";
+import { BadRequestError, SupabaseError } from "@/lib/errors";
 import { FollowToggle } from "./contract";
 
-/**
- * Toggle follow state of the current user (follower) towards followeeId.
- * NOTE: Until auth is wired, we accept followerId explicitly.
- */
-const ToggleInput = FollowToggle.extend({
-  followerId: z.string().uuid(),
-});
-export type ToggleInput = z.infer<typeof ToggleInput>;
+export async function toggleFollow(input: z.infer<typeof FollowToggle>) {
+  const parsed = FollowToggle.safeParse(input);
+  if (!parsed.success) {
+    throw new BadRequestError("Invalid follow payload.", { issues: parsed.error.issues });
+  }
 
-export async function toggleFollow(input: ToggleInput) {
-  const parsed = ToggleInput.parse(input);
   const admin = getSupabaseAdmin();
+  const { id: followerId } = await requireUser();
+  const { followeeId } = parsed.data;
 
-  // Check if already following
-  const { data: existing, error: selErr } = await admin
+  const { data: existing, error: selectError } = await admin
     .from("follows")
     .select("follower_id, followee_id")
-    .eq("follower_id", parsed.followerId)
-    .eq("followee_id", parsed.followeeId)
+    .eq("follower_id", followerId)
+    .eq("followee_id", followeeId)
     .maybeSingle();
 
-  if (selErr) {
-    throw new Error(`Follow check failed: ${selErr.message}`);
+  if (selectError) {
+    throw new SupabaseError(`Follow check failed: ${selectError.message}`, {
+      hint: selectError.hint,
+      details: selectError.details,
+    });
   }
 
   if (existing) {
-    // Unfollow
-    const { error } = await admin
+    const { error: deleteError } = await admin
       .from("follows")
       .delete()
-      .eq("follower_id", parsed.followerId)
-      .eq("followee_id", parsed.followeeId);
-    if (error) throw new Error(`Unfollow failed: ${error.message}`);
+      .eq("follower_id", followerId)
+      .eq("followee_id", followeeId);
+
+    if (deleteError) {
+      throw new SupabaseError(`Unfollow failed: ${deleteError.message}`, {
+        hint: deleteError.hint,
+        details: deleteError.details,
+      });
+    }
     return { isFollowing: false };
-  } else {
-    // Follow
-    const { error } = await admin.from("follows").insert({
-      follower_id: parsed.followerId,
-      followee_id: parsed.followeeId,
-    });
-    if (error) throw new Error(`Follow failed: ${error.message}`);
-    return { isFollowing: true };
   }
+
+  const { error: insertError } = await admin.from("follows").insert({
+    follower_id: followerId,
+    followee_id: followeeId,
+  });
+
+  if (insertError) {
+    throw new SupabaseError(`Follow failed: ${insertError.message}`, {
+      hint: insertError.hint,
+      details: insertError.details,
+    });
+  }
+
+  return { isFollowing: true };
 }
