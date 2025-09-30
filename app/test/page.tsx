@@ -9,26 +9,23 @@ import { listFeed } from "@/features/posts/actions";
  * Keeps / as marketing/landing while /test hosts product UI during buildout.
  */
 export default async function TestFeedPage() {
-  let items: any[] = [];
-  let nextCursor: string | undefined = undefined;
+  // Fetch initial page server-side for SSR
+  let initialPage: { items: any[], nextCursor: string | undefined } = { 
+    items: [], 
+    nextCursor: undefined 
+  };
   try {
     const res = await listFeed({ limit: 20 });
-    items = res.items;
-    nextCursor = res.nextCursor;
+    initialPage = { items: res.items, nextCursor: res.nextCursor };
   } catch {
     // During build without env, fall back to empty feed
-    items = [];
-    nextCursor = undefined;
   }
-
-  // TEMP until auth is wired: set to empty to disable posting in prod
-  const TEMP_USER_ID = "";
 
   return (
     <div className="container py-10 space-y-6">
       <h1 className="text-2xl font-semibold">Spore Test Feed</h1>
       <Composer onPosted={undefined} />
-      <FeedClient initialItems={items} initialNextCursor={nextCursor} />
+      <FeedClient initialPage={initialPage} />
     </div>
   );
 }

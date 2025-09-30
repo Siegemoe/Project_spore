@@ -4,8 +4,8 @@ import { supabaseUrl, supabaseAnon } from "@/lib/supabaseClient";
 
 /**
  * Next.js Middleware
- * Ensures Supabase auth cookies are kept in sync so SSR can read the session.
- * Uses createServerClient with explicit cookie adapters for NextRequest/NextResponse.
+ * 1. Ensures Supabase auth cookies are kept in sync so SSR can read the session
+ * 2. Protects /admin routes - requires admin authentication
  */
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: { headers: req.headers } });
@@ -34,7 +34,44 @@ export async function middleware(req: NextRequest) {
     });
 
     // Touch the session so helper refreshes cookies when needed
-    await supabase.auth.getSession();
+    const { data: { session } } = await supabase.auth.getSession();
+
+    // Protect admin routes
+    if (req.nextUrl.pathname.startsWith("/admin")) {
+      if (!session?.user) {
+        // Not authenticated - redirect to signin
+        const signInUrl = new URL("/auth/signin", req.url);
+        signInUrl.searchParams.set("redirect", req.nextUrl.pathname);
+        return NextResponse.redirect(signInUrl);
+      }
+
+      // Check if user is an admin
+      const { data: adminData } = await supabase
+        .from("admins")
+        .select("id, role")
+        .eq("user_id", session.user.id)
+        .is("revoked_at", null)
+        .single();
+
+      if (!adminData) {
+        // User is not an admin - return 403
+        return new NextResponse(
+          JSON.stringify({
+            error: "Forbidden",
+            message: "Admin access required. You do not have permission to access this resource.",
+          }),
+          {
+            status: 403,
+            headers: { "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      // User is an admin - allow access
+      // Add admin info to headers for downstream use
+      res.headers.set("x-admin-id", adminData.id);
+      res.headers.set("x-admin-role", adminData.role);
+    }
   } catch {
     // Ignore; request will continue
   }
