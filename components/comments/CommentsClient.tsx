@@ -131,7 +131,7 @@ export default function CommentsClient({ postId, initialComments }: Props) {
           return (
             <li key={c.id} className="card p-3 sm:p-4">
               <div className="flex gap-3">
-                <Link href={profileHref} className="flex-shrink-0">
+                <Link href={profileHref as any} className="flex-shrink-0">
                   <Avatar 
                     src={c.avatar_url} 
                     alt={displayName}
@@ -142,7 +142,7 @@ export default function CommentsClient({ postId, initialComments }: Props) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link 
-                      href={profileHref}
+                      href={profileHref as any}
                       className="font-medium text-text-primary hover:underline"
                     >
                       {displayName}
