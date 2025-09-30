@@ -104,7 +104,7 @@ export default function AdminNav({ adminUser }: AdminNavProps) {
             return (
               <Link
                 key={item.href}
-                href={item.href}
+                href={item.href as any}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-colors",
                   isActive
