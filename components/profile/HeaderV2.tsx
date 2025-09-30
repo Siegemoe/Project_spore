@@ -180,6 +180,7 @@ export function HeaderV2({ user, counts, viewerId, initialIsFollowing, reposCoun
               ) : null}
             </div>
           </div>
+          <div className="col-start-1 col-span-2 mt-3 border-t border-border-subtle" />
         </div>
       </div>
     </section>

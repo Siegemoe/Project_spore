@@ -12,6 +12,7 @@ type About = {
 
 export interface ProfileTabsProps {
   repos: Parameters<typeof RepoList>[0]["repos"];
+  reposError?: string | undefined;
   about: About;
   posts?: {
     userId: string;
@@ -32,7 +33,7 @@ export interface ProfileTabsProps {
 const TabKeys = ["posts", "comments", "about"] as const;
 type TabKey = typeof TabKeys[number];
 
-export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTabsProps) {
+export function ProfileTabs({ repos, reposError, about, posts, postsPlaceholder }: ProfileTabsProps) {
   const [tab, setTab] = React.useState<TabKey>("posts");
 
   return (
@@ -92,10 +93,15 @@ export function ProfileTabs({ repos, about, posts, postsPlaceholder }: ProfileTa
             </div>
 
             {/* Repositories preview within About */}
-            {repos && repos.length > 0 ? (
-              <div className="card p-4">
-                <h3 className="mb-2 text-sm font-semibold text-text-secondary">Repositories</h3>
-                <RepoList repos={repos} />
+            {(repos && repos.length > 0) || reposError ? (
+              <div className="card p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-text-secondary">Repositories</h3>
+                  {reposError ? (
+                    <span className="text-xs text-red-600">GitHub data unavailable</span>
+                  ) : null}
+                </div>
+                {repos && repos.length > 0 ? <RepoList repos={repos} /> : <p className="text-sm text-text-secondary">No public repos found.</p>}
               </div>
             ) : null}
           </div>

@@ -189,7 +189,9 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
     .eq("user_id", user.id)
     .maybeSingle();
 
-  const repos = gitAccount?.github_login ? await fetchPublicRepos(gitAccount.github_login, 10) : [];
+  const reposResult = gitAccount?.github_login ? await fetchPublicRepos(gitAccount.github_login, 10) : { repos: [], error: undefined };
+  const repos = reposResult.repos;
+  const reposError = reposResult.error;
   const githubLogin = gitAccount?.github_login ?? null;
 
   // Contribution counts (posts + comments)
@@ -278,6 +280,7 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
 
         <ProfileTabs
           repos={repos}
+          reposError={reposError}
           about={{ bio: user.bio ?? null }}
           posts={{
             userId: user.id,
