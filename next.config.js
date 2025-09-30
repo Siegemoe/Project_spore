@@ -7,6 +7,14 @@ const nextConfig = {
   },
   experimental: {
     typedRoutes: true
+  },
+  // Exclude legacy supabase template directory from build
+  webpack: (config) => {
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: ['**/supabase/**']
+    };
+    return config;
   }
 };
 module.exports = nextConfig;
