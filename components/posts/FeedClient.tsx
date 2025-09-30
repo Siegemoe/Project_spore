@@ -1,50 +1,26 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useFeed, FeedItem, FeedResponse } from "@/features/posts/hooks";
 import PostCard, { PostCardSkeleton } from "./PostCard";
 
-type FeedItem = {
-  id: string;
-  user_id: string;
-  caption: string | null;
-  media_url: string | null;
-  media_type: string | null;
-  created_at: string;
-};
-
 type Props = {
-  initialItems: FeedItem[];
-  initialNextCursor?: string;
+  initialPage?: FeedResponse;
+  initialCursor?: string;
+  viewerId?: string;
 };
 
-export default function FeedClient({ initialItems, initialNextCursor }: Props) {
-  const [items, setItems] = useState<FeedItem[]>(initialItems);
-  const [cursor, setCursor] = useState<string | undefined>(initialNextCursor);
-  const [loading, setLoading] = useState(false);
-  const [viewerId, setViewerId] = useState<string | undefined>(undefined);
-  const [error, setError] = useState<string | null>(null);
+export default function FeedClient({ initialPage, initialCursor, viewerId }: Props) {
+  const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isError, error } = useFeed({
+    initialPage,
+    initialCursor,
+    viewerId,
+  });
 
   // When new posts arrive via realtime while user is browsing, stage them behind a banner
   const [staged, setStaged] = useState<FeedItem[]>([]);
   const stagedCount = staged.length;
-
-  // detect viewer (auth) if available
-  useEffect(() => {
-    let cancelled = false;
-    async function loadUser() {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!cancelled) setViewerId(data.user?.id);
-      } catch {
-        // ignore
-      }
-    }
-    loadUser();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   // Realtime prepend: stage new items to avoid content shift; user can tap "New posts"
   useEffect(() => {
@@ -64,27 +40,6 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
     };
   }, []);
 
-  async function loadMore() {
-    if (!cursor || loading) return;
-    try {
-      setLoading(true);
-      setError(null);
-      const qs = new URLSearchParams();
-      qs.set("cursor", cursor);
-      qs.set("limit", "20");
-      if (viewerId) qs.set("viewer", viewerId);
-      const res = await fetch(`/api/feed?${qs.toString()}`);
-      if (!res.ok) throw new Error("Failed to load more");
-      const data = await res.json();
-      setItems((prev) => [...prev, ...(data.items as FeedItem[])]);
-      setCursor(data.nextCursor || undefined);
-    } catch {
-      setError("Failed to load more. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
   // Infinite scroll via IntersectionObserver
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
@@ -93,11 +48,8 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
     const io = new IntersectionObserver(
       (entries) => {
         for (const e of entries) {
-          if (e.isIntersecting) {
-            // auto-load when the sentinel is visible and we have a next cursor
-            if (cursor && !loading) {
-              loadMore();
-            }
+          if (e.isIntersecting && hasNextPage && !isFetchingNextPage) {
+            fetchNextPage();
           }
         }
       },
@@ -107,10 +59,13 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
     return () => {
       io.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cursor, loading, viewerId]);
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  const hasMore = Boolean(cursor);
+  // Flatten all pages into a single array
+  const allItems = data?.pages.flatMap((page) => page.items) ?? [];
+  
+  // Merge staged items with fetched items
+  const displayItems = stagedCount > 0 ? [...staged, ...allItems] : allItems;
 
   return (
     <div className="space-y-4">
@@ -120,25 +75,24 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
           <button
             type="button"
             onClick={() => {
-              setItems((prev) => [...staged, ...prev]);
+              // Clear staged items - they're already in displayItems
               setStaged([]);
-              // keep cursor unaffected
             }}
             className="mx-auto block w-full max-w-2xl rounded-md border border-border-subtle bg-[rgb(var(--surface))] px-3 py-2 text-sm font-medium text-text-primary shadow-soft hover:bg-[rgb(var(--surface-muted))]"
           >
-            {stagedCount} new {stagedCount === 1 ? "post" : "posts"} — tap to view
+            {stagedCount} new {stagedCount === 1 ? "post" : "posts"} — tap to refresh
           </button>
         </div>
       ) : null}
 
-      {error ? (
+      {isError ? (
         <div role="alert" className="mx-auto w-full max-w-2xl rounded-md border border-red-300 bg-red-50 text-red-800 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-sm">{error}</span>
+            <span className="text-sm">{error?.message ?? "Failed to load feed"}</span>
             <button
               type="button"
-              onClick={loadMore}
-              disabled={loading || !hasMore}
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage || !hasNextPage}
               className="rounded border border-red-300 bg-white/60 px-2 py-1 text-sm disabled:opacity-60"
             >
               Try again
@@ -147,16 +101,16 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
         </div>
       ) : null}
 
-      {items.length === 0 && (
+      {displayItems.length === 0 && !isFetchingNextPage && (
         <p className="text-sm text-text-secondary">No posts yet. Follow someone or share your first post.</p>
       )}
 
-      {items.map((it) => (
+      {displayItems.map((it) => (
         <PostCard key={it.id} {...it} />
       ))}
 
       {/* loading skeletons */}
-      {loading && (
+      {isFetchingNextPage && (
         <div className="space-y-4">
           <PostCardSkeleton />
           <PostCardSkeleton />
@@ -168,11 +122,11 @@ export default function FeedClient({ initialItems, initialNextCursor }: Props) {
       <div className="flex justify-center py-4">
         <button
           type="button"
-          disabled={loading || !hasMore}
-          onClick={loadMore}
+          disabled={isFetchingNextPage || !hasNextPage}
+          onClick={() => fetchNextPage()}
           className="btn btn-outline disabled:opacity-60"
         >
-          {loading ? "Loading…" : hasMore ? "Load more" : "No more"}
+          {isFetchingNextPage ? "Loading…" : hasNextPage ? "Load more" : "No more"}
         </button>
       </div>
     </div>

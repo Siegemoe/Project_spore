@@ -65,7 +65,7 @@ Storage (Phase 1):
     - File: db/migrations/phase1/0002_storage_bucket.sql
     - This is idempotent and will create a public bucket named media-public if missing.
   - Apply RLS policies:
-    - File: db/policies/phase1/0002_storage_policies.sql
+    - File: db/policies/phase1/0004_storage_policies_install.sql
     - Allows public READ on media-public and authenticated WRITE limited to own prefix {auth.uid()}/...
 - Images config: next.config.js already allows images from aehiqptugvakjtlvuixb.supabase.co
 - CORS (Supabase Dashboard → Storage → Settings):
@@ -76,7 +76,7 @@ Storage (Phase 1):
   - Max age: 3600 (or your preference)
 
 Troubleshooting (policies)
-- If running db/policies/phase1/0002_storage_policies.sql shows:
+- If running db/policies/phase1/0004_storage_policies_install.sql shows:
   - ERROR: 42501: must be owner of table objects
 - Cause: creating/dropping policies on storage.objects requires the table owner role (postgres/supabase_admin). 
 - Fix (any one of these):
@@ -133,6 +133,74 @@ See `.github/workflows/ci.yml` (added in this repo).
 
 Apache-2.0 (see `LICENSE`).
 
+## Data Fetching Architecture
+
+Project Spore uses **React Query** (@tanstack/react-query) for client-side data fetching, caching, and state management. This provides:
+- Automatic background refetching
+- Optimistic updates
+- SSR hydration
+- Efficient cache invalidation
+
+### Core Hooks
+
+**Feed (`features/posts/hooks.ts`)**
+- `useFeed()` — Infinite scroll feed with cursor-based pagination
+- Supports SSR hydration via `initialPage` prop
+- Integrates with realtime subscriptions for staged updates
+
+**Comments (`features/comments/hooks.ts`)**
+- `useComments()` — Fetch comments for a post
+- `useCreateComment()` — Create comment with optimistic updates
+
+**Follows (`features/follows/hooks.ts`)**
+- `useFollowState()` — Check if user is following another user
+- `useToggleFollow()` — Toggle follow/unfollow with cache invalidation
+
+### SSR Pattern
+
+Server components (e.g., `app/page.tsx`) prefetch data and dehydrate the React Query cache:
+
+```typescript
+import { QueryClient, dehydrate } from "@tanstack/react-query";
+import { Hydrate } from "@/components/providers/QueryProvider";
+
+export default async function Page() {
+  const queryClient = new QueryClient();
+  
+  // Prefetch data
+  await queryClient.prefetchInfiniteQuery({
+    queryKey: feedQueryKey(viewerId),
+    queryFn: () => fetchInitialData(),
+    initialPageParam: undefined,
+  });
+  
+  const dehydratedState = dehydrate(queryClient);
+  
+  return (
+    <Hydrate state={dehydratedState}>
+      <ClientComponent />
+    </Hydrate>
+  );
+}
+```
+
+Client components consume the hydrated data seamlessly:
+
+```typescript
+export default function ClientComponent() {
+  const { data, fetchNextPage } = useFeed({ viewerId });
+  // Data is immediately available from SSR
+}
+```
+
+### Realtime Integration
+
+Realtime subscriptions (Supabase) work alongside React Query:
+- New items are staged in local state (avoiding content shift)
+- User taps banner to merge staged items
+- Optimistic updates handle create/update mutations
+- React Query invalidates cache after successful mutations
+
 ## Roadmap
 
 Phase 0 (this PR):
@@ -141,11 +209,19 @@ Phase 0 (this PR):
 - Contract for `/api/waitlist`
 - Minimal brand setup
 
-Next (Stage 1 preview):
-- Auth routes (GitHub/Google/Email)
-- Feed, post composer, follows, comments
-- Media upload (Supabase Storage)
-- Realtime updates
+Phase 1 (current):
+- ✅ Auth routes (GitHub/Google/Email)
+- ✅ Feed with React Query + infinite scroll
+- ✅ Post composer, follows, comments
+- ✅ Media upload (Supabase Storage)
+- ✅ Realtime updates with staged banner
+- ✅ Optimistic updates for comments and follows
+
+Next (Phase 2):
+- Enhanced personalization (follow-based feed)
+- Search functionality
+- Notifications system
+- Performance optimizations
 
 ---
 

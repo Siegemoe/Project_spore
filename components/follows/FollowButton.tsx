@@ -1,22 +1,28 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
-import { toggleFollow } from "@/features/follows/actions";
+import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useFollowState, useToggleFollow } from "@/features/follows/hooks";
 import { Button } from "@/components/ui/Button";
 
 type Props = {
-  followerId?: string; // optional until auth is wired
+  followerId?: string;
   followeeId: string;
-  initialIsFollowing: boolean;
+  initialIsFollowing?: boolean;
 };
 
 export default function FollowButton({ followerId, followeeId, initialIsFollowing }: Props) {
-  const [busy, setBusy] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(initialIsFollowing);
   const [viewerId, setViewerId] = useState<string | undefined>(followerId);
-  const [isPending, startTransition] = useTransition();
+  
+  const { data: isFollowing = false } = useFollowState({
+    followerId: viewerId,
+    followeeId,
+    initialState: initialIsFollowing,
+  });
+  
+  const toggleFollow = useToggleFollow();
 
+  // Detect viewer (auth) if not provided
   useEffect(() => {
     let cancelled = false;
     async function loadUser() {
@@ -36,24 +42,11 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
     };
   }, [viewerId]);
 
-  const disabled = !viewerId || busy || isPending;
+  const disabled = !viewerId || toggleFollow.isPending;
 
   function onToggle() {
-    if (!viewerId || busy) return;
-    setBusy(true);
-    const optimistic = !isFollowing;
-    setIsFollowing(optimistic);
-
-    startTransition(async () => {
-      try {
-        const res = await toggleFollow({ followeeId });
-        setIsFollowing(res.isFollowing);
-      } catch {
-        setIsFollowing(initialIsFollowing);
-      } finally {
-        setBusy(false);
-      }
-    });
+    if (!viewerId) return;
+    toggleFollow.mutate({ followeeId });
   }
 
   return (
@@ -65,7 +58,7 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
       size="sm"
       title={!viewerId ? "Sign in to follow" : undefined}
     >
-      {busy || isPending ? "..." : isFollowing ? "Following" : "Follow"}
+      {toggleFollow.isPending ? "..." : isFollowing ? "Following" : "Follow"}
     </Button>
   );
 }
