@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
 
 export type PostCardProps = {
@@ -27,6 +28,9 @@ export default function PostCard({
   handle
 }: PostCardProps) {
   const when = new Date(created_at).toLocaleString();
+  const pathname = usePathname();
+  const router = useRouter();
+  const isViewingThisPost = pathname === `/p/${id}`;
 
   return (
     <article className="card max-w-2xl p-4 sm:p-6 space-y-3">
@@ -45,9 +49,19 @@ export default function PostCard({
             {when}
           </time>
         </div>
-        <Link href={`/p/${id}`} className="underline underline-offset-2 hover:opacity-80">
-          View
-        </Link>
+        {isViewingThisPost ? (
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="underline underline-offset-2 hover:opacity-80"
+          >
+            Back
+          </button>
+        ) : (
+          <Link href={`/p/${id}`} className="underline underline-offset-2 hover:opacity-80">
+            View
+          </Link>
+        )}
       </div>
 
       {/* Body */}

@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import { useComments, useCreateComment, Comment } from "@/features/comments/hooks";
+import { Avatar } from "@/components/ui/Avatar";
 
 type Props = {
   postId: string;
@@ -122,17 +124,48 @@ export default function CommentsClient({ postId, initialComments }: Props) {
       ) : null}
 
       <ul className="space-y-3">
-        {comments.map((c) => (
-          <li key={c.id} className="card p-3 sm:p-4">
-            <div className="text-sm text-neutral-500">
-              {new Date(c.created_at).toLocaleString()}
-              {c.id.startsWith("temp-") ? (
-                <span className="ml-2 text-xs text-neutral-500">(sending…)</span>
-              ) : null}
-            </div>
-            <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{c.body}</p>
-          </li>
-        ))}
+        {comments.map((c) => {
+          const displayName = c.display_name || c.handle || "User";
+          const profileHref = c.handle ? `/u/${c.handle}` : "/u/me";
+          
+          return (
+            <li key={c.id} className="card p-3 sm:p-4">
+              <div className="flex gap-3">
+                <Link href={profileHref} className="flex-shrink-0">
+                  <Avatar 
+                    src={c.avatar_url} 
+                    alt={displayName}
+                    name={displayName}
+                    size="sm"
+                  />
+                </Link>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Link 
+                      href={profileHref}
+                      className="font-medium text-text-primary hover:underline"
+                    >
+                      {displayName}
+                    </Link>
+                    {c.handle && (
+                      <span className="text-sm text-text-secondary">@{c.handle}</span>
+                    )}
+                    <span className="text-sm text-neutral-500">·</span>
+                    <time className="text-sm text-neutral-500">
+                      {new Date(c.created_at).toLocaleString()}
+                    </time>
+                    {c.id.startsWith("temp-") && (
+                      <span className="text-xs text-neutral-500">(sending…)</span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap text-text-primary">
+                    {c.body}
+                  </p>
+                </div>
+              </div>
+            </li>
+          );
+        })}
         {comments.length === 0 && <li className="text-sm text-neutral-500">No comments yet.</li>}
       </ul>
     </div>

@@ -7,6 +7,9 @@ export type Comment = {
   user_id: string;
   body: string;
   created_at: string;
+  handle?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
 };
 
 export const commentsQueryKey = (postId: string) => ["comments", postId] as const;

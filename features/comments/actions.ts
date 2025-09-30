@@ -63,5 +63,42 @@ export async function listComments(postId: string, limit = 50) {
     });
   }
 
-  return data ?? [];
+  const comments = data ?? [];
+
+  // Enrich with user data
+  const userIds = Array.from(new Set(comments.map((c: any) => c.user_id))).filter(Boolean) as string[];
+  
+  let usersById: Record<string, { handle: string | null; display_name: string | null; avatar_url: string | null }> = {};
+  
+  if (userIds.length > 0) {
+    const { data: users, error: usersError } = await admin
+      .from("users")
+      .select("id, handle, display_name, avatar_url")
+      .in("id", userIds);
+
+    if (usersError) {
+      // eslint-disable-next-line no-console
+      console.warn("User enrichment failed for comments", usersError);
+    } else {
+      for (const u of users ?? []) {
+        usersById[u.id as string] = {
+          handle: (u as any).handle ?? null,
+          display_name: (u as any).display_name ?? null,
+          avatar_url: (u as any).avatar_url ?? null,
+        };
+      }
+    }
+  }
+
+  const enriched = comments.map((c: any) => {
+    const u = usersById[c.user_id] || {};
+    return {
+      ...c,
+      handle: u.handle ?? null,
+      display_name: u.display_name ?? null,
+      avatar_url: u.avatar_url ?? null,
+    };
+  });
+
+  return enriched;
 }
