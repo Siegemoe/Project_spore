@@ -45,9 +45,9 @@ export default function PromoPage() {
   return (
     <div className="grid gap-10 md:grid-cols-2 items-center">
       <section className="space-y-6">
-        <h1 className="hero-title">Vibe coders build in public.</h1>
+        <h1 className="hero-title">Build in public.</h1>
         <p className="hero-subtitle">
-          Spore is where devs publish MCPs, share projects, and connect. Simple, light, and fast.
+          Spore is reputation infrastructure for the next generation of builders. Start projects, find collaborators, and build your reputation.
         </p>
 
         <form onSubmit={onSubmit} className="card p-4 sm:p-6 max-w-lg">
@@ -83,7 +83,7 @@ export default function PromoPage() {
                 checked={publishMcp}
                 onChange={(e) => setPublishMcp(e.target.checked)}
               />
-              <span className="text-sm">I want to publish MCPs</span>
+              <span className="text-sm">I want to be kept up to date on Project Spore.</span>
             </label>
 
             <button type="submit" disabled={loading} className="btn btn-accent mt-2 disabled:opacity-60">
@@ -98,17 +98,9 @@ export default function PromoPage() {
           </div>
         </form>
 
-        <div className="flex items-center gap-2">
-          <Link href={"/auth/signup" as Route} className="btn btn-outline">
-            Sign Up
-          </Link>
-          <Link href={"/auth/signin" as Route} className="btn btn-outline">
-            Login
-          </Link>
-        </div>
       </section>
 
-      <section className="relative aspect-[4/3] w-full">
+      <section className="relative aspect-[1/1] w-full">
         <Image
           src={Hero}
           alt="Spore mascot"
