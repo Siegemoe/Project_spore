@@ -45,8 +45,23 @@ export async function middleware(req: NextRequest) {
         return NextResponse.redirect(signInUrl);
       }
 
-      // Check if user is an admin
-      const { data: adminData } = await supabase
+      // Check if user is an admin using service role (bypasses RLS)
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (!serviceKey) {
+        throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
+      }
+
+      const adminClient = createServerClient(supabaseUrl, serviceKey, {
+        cookies: {
+          get(name: string) {
+            return req.cookies.get(name)?.value;
+          },
+          set() {},
+          remove() {},
+        },
+      });
+
+      const { data: adminData } = await adminClient
         .from("admins")
         .select("id, role")
         .eq("user_id", session.user.id)
@@ -72,8 +87,9 @@ export async function middleware(req: NextRequest) {
       res.headers.set("x-admin-id", adminData.id);
       res.headers.set("x-admin-role", adminData.role);
     }
-  } catch {
-    // Ignore; request will continue
+  } catch (err) {
+    // Log error but don't block request
+    console.error("Middleware error:", err);
   }
 
   return res;
