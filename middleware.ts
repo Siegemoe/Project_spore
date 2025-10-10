@@ -46,9 +46,9 @@ export async function middleware(req: NextRequest) {
       }
 
       // Check if user is an admin using service role (bypasses RLS)
-      const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      const serviceKey = process.env.SUPABASE_SERVICE_ROLE;
       if (!serviceKey) {
-        throw new Error("SUPABASE_SERVICE_ROLE_KEY not configured");
+        throw new Error("SUPABASE_SERVICE_ROLE not configured");
       }
 
       const adminClient = createServerClient(supabaseUrl, serviceKey, {
