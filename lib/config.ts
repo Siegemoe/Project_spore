@@ -1,42 +1,45 @@
-export const MEDIA_BUCKET = "media-public";
+/**
+ * Application configuration
+ * Centralized config with environment variable validation
+ */
 
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10MB
+// Supabase Configuration
+export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+export const SUPABASE_SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE || "";
 
-export const ALLOWED_IMAGE_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif"
-] as const;
+export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+export const isSupabaseAdminConfigured = Boolean(SUPABASE_URL && SUPABASE_SERVICE_ROLE);
 
-export const ALLOWED_VIDEO_TYPES = ["video/mp4"] as const;
+// Feature Flags
+export const ENABLE_ADMIN_FEATURES = process.env.NEXT_PUBLIC_ENABLE_ADMIN === "true" && isSupabaseAdminConfigured;
+export const ENABLE_NEW_MOBILE_UI = process.env.NEXT_PUBLIC_NEW_MOBILE_UI === "true";
 
-export function contentTypeToExt(contentType: string): string {
-  switch (contentType) {
-    case "image/jpeg":
-      return "jpg";
-    case "image/png":
-      return "png";
-    case "image/webp":
-      return "webp";
-    case "image/gif":
-      return "gif";
-    case "video/mp4":
-      return "mp4";
-    default:
-      return "bin";
-  }
-}
+// App URLs
+export const APP_URL = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 
 /**
- * Feature flags
- * Use NEXT_PUBLIC_ env to allow client components to read at build time.
- * Example: NEXT_PUBLIC_NEW_MOBILE_UI=true
+ * Runtime configuration check
+ * Logs warnings for missing critical config
  */
-export const NEW_MOBILE_UI: boolean = (() => {
-  const val = process.env.NEXT_PUBLIC_NEW_MOBILE_UI;
-  if (val === "false" || val === "0") return false;
-  if (val === "true" || val === "1") return true;
-  // Default to enabled when not explicitly set (helps Vercel if env missing)
-  return true;
-})();
+export function validateConfig() {
+  const warnings: string[] = [];
+
+  if (!isSupabaseConfigured) {
+    warnings.push("Supabase not configured - auth features will be disabled");
+  }
+
+  if (!isSupabaseAdminConfigured) {
+    warnings.push("Supabase admin not configured - admin features will be disabled");
+  }
+
+  if (warnings.length > 0 && typeof window === "undefined") {
+    // Server-side only
+    warnings.forEach(w => console.warn(`⚠️ Config: ${w}`));
+  }
+
+  return {
+    isValid: warnings.length === 0,
+    warnings,
+  };
+}
