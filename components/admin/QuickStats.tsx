@@ -1,9 +1,23 @@
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
 
 export default async function QuickStats() {
+  // Gracefully handle missing env vars
+  if (!hasSupabaseAdminEnv()) {
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="card p-6">
+          <div className="text-sm text-text-secondary mb-2">⚙️ Configuration Needed</div>
+          <p className="text-xs text-text-secondary">
+            Add SUPABASE_SERVICE_ROLE to environment variables
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const admin = getSupabaseAdmin();
 
-  // Fetch quick stats in parallel
+  // Fetch quick stats in parallel with error handling
   const [usersResult, postsResult, commentsResult] = await Promise.allSettled([
     admin.from("users").select("id", { count: "exact", head: true }),
     admin.from("posts").select("id", { count: "exact", head: true }),
