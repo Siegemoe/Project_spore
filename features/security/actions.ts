@@ -93,7 +93,7 @@ export async function listSecurityEvents(params: {
     .from("security_events")
     .select(`
       *,
-      user:users(id, handle, display_name, email),
+      user:users(id, handle, display_name, avatar_url),
       resolver:admins!security_events_resolved_by_fkey(
         id,
         role,
