@@ -18,7 +18,7 @@ export default async function ModerationPage({
   const adminUser = await getCurrentAdmin();
   
   if (!adminUser) {
-    redirect("/auth/signin?redirect=/admin/moderation");
+    redirect("/auth/signin?returnTo=/admin/moderation");
   }
 
   // Check if user has moderator role or higher

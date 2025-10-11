@@ -20,7 +20,7 @@ export default async function AdminRootLayout({
   const adminUser = await getCurrentAdmin();
   
   if (!adminUser) {
-    redirect("/auth/signin?redirect=/admin");
+    redirect("/auth/signin?returnTo=/admin");
   }
 
   return <AdminLayout adminUser={adminUser}>{children}</AdminLayout>;

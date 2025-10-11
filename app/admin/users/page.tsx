@@ -23,7 +23,7 @@ export default async function UsersPage({
   const adminUser = await getCurrentAdmin();
   
   if (!adminUser) {
-    redirect("/auth/signin?redirect=/admin/users");
+    redirect("/auth/signin?returnTo=/admin/users");
   }
 
   // Check if user has support role or higher

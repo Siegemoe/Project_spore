@@ -5,9 +5,7 @@ import { supabaseUrl, supabaseAnon } from "@/lib/supabaseClient";
 /**
  * Next.js Middleware
  * Ensures Supabase auth cookies are kept in sync so SSR can read the session.
- * 
- * Note: Admin route protection is handled in app/admin/layout.tsx
- * This is more reliable than middleware for checking admin status.
+ * Admin route protection is handled in app/admin/layout.tsx
  */
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: { headers: req.headers } });
@@ -36,7 +34,7 @@ export async function middleware(req: NextRequest) {
     });
 
     // Touch the session so helper refreshes cookies when needed
-    await supabase.auth.getUser();
+    await supabase.auth.getSession();
   } catch {
     // Ignore; request will continue
   }
