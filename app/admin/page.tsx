@@ -5,6 +5,9 @@ export const metadata = {
   title: "Admin Dashboard - Spore",
 };
 
+// Disable static generation - this page must be dynamic
+export const dynamic = "force-dynamic";
+
 export default async function AdminDashboardPage() {
   const adminUser = await getCurrentAdmin();
 

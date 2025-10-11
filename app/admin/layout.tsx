@@ -8,6 +8,9 @@ export const metadata = {
   description: "Administrative control panel for Spore platform",
 };
 
+// Disable static generation - admin pages must be dynamic
+export const dynamic = "force-dynamic";
+
 export default async function AdminRootLayout({
   children,
 }: {

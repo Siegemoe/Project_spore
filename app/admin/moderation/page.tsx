@@ -7,6 +7,9 @@ export const metadata = {
   title: "Content Moderation - Admin",
 };
 
+// Disable static generation - this page must be dynamic
+export const dynamic = "force-dynamic";
+
 export default async function ModerationPage({
   searchParams,
 }: {
