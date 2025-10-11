@@ -101,11 +101,21 @@ export async function listFeed(input: ListFeedOptions) {
 
   const { cursor, limit } = parsed.data;
   const viewerId = input.viewerId;
-  const admin = getSupabaseAdmin();
+  
+  // Use admin client for feed queries (needed for RLS bypass on public feed)
+  // Falls back to server client if service role not available
+  let client;
+  try {
+    client = getSupabaseAdmin();
+  } catch {
+    // Fallback to regular server client if admin not configured
+    const { getServerSupabase } = await import("@/lib/supabaseServer");
+    client = getServerSupabase();
+  }
 
   let allowedAuthors: string[] | null = null;
   if (viewerId) {
-    const { data: followees, error: followError } = await admin
+    const { data: followees, error: followError } = await client
       .from("follows")
       .select("followee_id")
       .eq("follower_id", viewerId);
@@ -120,7 +130,7 @@ export async function listFeed(input: ListFeedOptions) {
     allowedAuthors = [viewerId, ...(followees?.map((f: any) => f.followee_id) ?? [])];
   }
 
-  let query = admin
+  let query = client
     .from("posts")
     .select("id,user_id,caption,media_url,media_type,created_at", { count: "exact" })
     .order("created_at", { ascending: false })
@@ -131,7 +141,7 @@ export async function listFeed(input: ListFeedOptions) {
   }
 
   if (cursor) {
-    const { data: cursorRow, error: cursorError } = await admin
+    const { data: cursorRow, error: cursorError } = await client
       .from("posts")
       .select("created_at")
       .eq("id", cursor)
@@ -167,7 +177,7 @@ export async function listFeed(input: ListFeedOptions) {
   > = {};
 
   if (userIds.length > 0) {
-    const { data: users, error: usersError } = await admin
+    const { data: users, error: usersError } = await client
       .from("users")
       .select("id, handle, display_name, avatar_url")
       .in("id", userIds);
