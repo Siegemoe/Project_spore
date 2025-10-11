@@ -10,6 +10,11 @@ import { supabaseUrl, supabaseAnon } from "@/lib/supabaseClient";
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: { headers: req.headers } });
 
+  // Skip Supabase auth sync if env vars not configured
+  if (!supabaseUrl || !supabaseAnon) {
+    return res;
+  }
+
   try {
     const supabase = createServerClient(supabaseUrl, supabaseAnon, {
       cookies: {
