@@ -20,7 +20,8 @@
     "forceConsistentCasingInFileNames": true,
     "incremental": true,
     "types": [
-      "node"
+      "node",
+      "jest"
     ],
     "plugins": [
       {
