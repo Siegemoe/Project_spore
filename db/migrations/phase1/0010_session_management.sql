@@ -57,8 +57,8 @@ CREATE TABLE IF NOT EXISTS account_locks (
   last_attempt TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Index for checking active locks
-CREATE INDEX idx_account_locks_locked ON account_locks(locked_until) WHERE locked_until > NOW();
+-- Index for checking active locks (without NOW() predicate - use in queries instead)
+CREATE INDEX idx_account_locks_locked ON account_locks(locked_until);
 
 -- ============================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES

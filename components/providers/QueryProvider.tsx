@@ -19,8 +19,17 @@ export function QueryProvider({ children }: QueryProviderProps) {
       new QueryClient({
         defaultOptions: {
           queries: {
-            staleTime: 30_000,
+            staleTime: 30_000, // Data fresh for 30 seconds
+            gcTime: 5 * 60 * 1000, // Cache for 5 minutes
             refetchOnWindowFocus: false,
+            refetchOnMount: false,
+            refetchOnReconnect: false,
+            retry: 1,
+            retryDelay: 1000,
+          },
+          mutations: {
+            retry: 1,
+            retryDelay: 1000,
           },
         },
       })
