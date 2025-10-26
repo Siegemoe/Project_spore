@@ -53,12 +53,11 @@ const NAV_ITEMS: NavItem[] = [
     minRole: "analyst",
   },
   {
-    href: "/admin/mcps",
-    label: "MCPs",
-    icon: "🔌",
+    href: "/admin/audit",
+    label: "Audit Logs",
+    icon: "📋",
     minRole: "moderator",
-  },
-  {
+  },  {
     href: "/admin/config",
     label: "Config",
     icon: "⚙️",

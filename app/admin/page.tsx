@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getCurrentAdmin } from "@/lib/admin/auth";
 import QuickStats from "@/components/admin/QuickStats";
 
@@ -7,6 +8,32 @@ export const metadata = {
 
 // Disable static generation - this page must be dynamic
 export const dynamic = "force-dynamic";
+
+// AdminFeatureCard component for consistent card styling
+function AdminFeatureCard({
+  href,
+  icon,
+  title,
+  description,
+  features,
+}: {
+  href: string;
+  icon: string;
+  title: string;
+  description: string;
+  features: string;
+}) {
+  return (
+    <Link href={href as any} className="card p-6 hover:shadow-lg transition-shadow">
+      <div className="flex items-center gap-3 mb-3">
+        <span className="text-3xl">{icon}</span>
+        <h3 className="text-lg font-semibold text-text-primary">{title}</h3>
+      </div>
+      <p className="text-sm text-text-secondary mb-3">{description}</p>
+      <div className="text-xs text-text-secondary">{features}</div>
+    </Link>
+  );
+}
 
 export default async function AdminDashboardPage() {
   const adminUser = await getCurrentAdmin();
@@ -24,90 +51,63 @@ export default async function AdminDashboardPage() {
       {/* Quick stats */}
       <QuickStats />
 
-      {/* Recent activity / quick actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Quick actions card */}
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-text-primary mb-4">Quick Actions</h2>
-          <div className="space-y-2">
-            <a
-              href="/admin/moderation"
-              className="block px-4 py-3 rounded-md bg-[rgb(var(--surface-muted))] hover:bg-[rgb(var(--surface-subtle))] transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-text-primary">Review Reports</span>
-                <span className="text-lg">⚠️</span>
-              </div>
-              <p className="text-sm text-text-secondary mt-1">
-                Check flagged content and user reports
-              </p>
-            </a>
-            
-            <a
-              href="/admin/users"
-              className="block px-4 py-3 rounded-md bg-[rgb(var(--surface-muted))] hover:bg-[rgb(var(--surface-subtle))] transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-text-primary">Manage Users</span>
-                <span className="text-lg">👥</span>
-              </div>
-              <p className="text-sm text-text-secondary mt-1">
-                Search and manage user accounts
-              </p>
-            </a>
+      {/* Admin Features Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Content Moderation */}
+        <AdminFeatureCard
+          href="/admin/moderation"
+          icon="⚠️"
+          title="Moderation"
+          description="Review reported content, manage user warnings, suspensions, and bans"
+          features="• Report workflow • Bulk actions • User moderation"
+        />
 
-            {adminUser?.role === "super_admin" && (
-              <a
-                href="/admin/config"
-                className="block px-4 py-3 rounded-md bg-[rgb(var(--surface-muted))] hover:bg-[rgb(var(--surface-subtle))] transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-medium text-text-primary">System Config</span>
-                  <span className="text-lg">⚙️</span>
-                </div>
-                <p className="text-sm text-text-secondary mt-1">
-                  Configure system settings and features
-                </p>
-              </a>
-            )}
-          </div>
-        </div>
+        {/* User Management */}
+        <AdminFeatureCard
+          href="/admin/users"
+          icon="👥"
+          title="Users"
+          description="Search users, view profiles, manage accounts and permissions"
+          features="• Advanced search • User details • Account actions"
+        />
 
-        {/* System status card */}
-        <div className="card p-6">
-          <h2 className="text-lg font-semibold text-text-primary mb-4">System Status</h2>
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">Platform Status</span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                <span className="text-sm font-medium text-text-primary">Operational</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">Database</span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                <span className="text-sm font-medium text-text-primary">Healthy</span>
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-text-secondary">Storage</span>
-              <span className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-green-500"></span>
-                <span className="text-sm font-medium text-text-primary">Available</span>
-              </span>
-            </div>
-            <div className="pt-4 border-t border-border-subtle">
-              <a
-                href="/admin/health"
-                className="text-sm text-[rgb(var(--accent))] hover:underline"
-              >
-                View detailed health metrics →
-              </a>
-            </div>
-          </div>
-        </div>
+        {/* Security Alerts */}
+        <AdminFeatureCard
+          href="/admin/security"
+          icon="🔒"
+          title="Security"
+          description="Monitor security events, block IPs, track threat scores"
+          features="• Real-time alerts • IP blocking • Threat detection"
+        />
+
+        {/* Platform Health */}
+        <AdminFeatureCard
+          href="/admin/health"
+          icon="💚"
+          title="Health"
+          description="Monitor active users, API performance, system components"
+          features="• Active users • API metrics • Database stats"
+        />
+
+        {/* Audit Logs */}
+        <AdminFeatureCard
+          href="/admin/audit"
+          icon="📋"
+          title="Audit Logs"
+          description="View all admin actions with full audit trail"
+          features="• Action history • Filter by admin • Export logs"
+        />
+
+        {/* Analytics (Analyst+) */}
+        {adminUser?.role && ["analyst", "moderator", "super_admin"].includes(adminUser.role) && (
+          <AdminFeatureCard
+            href="/admin/analytics"
+            icon="📈"
+            title="Analytics"
+            description="Platform analytics, growth metrics, and insights"
+            features="• User growth • Engagement • Trends"
+          />
+        )}
       </div>
 
       {/* Admin role info */}
@@ -115,7 +115,7 @@ export default async function AdminDashboardPage() {
         <div className="flex items-start gap-3">
           <span className="text-2xl">ℹ️</span>
           <div>
-            <h3 className="font-semibold text-text-primary">Your Admin Role: {adminUser?.role.replace("_", " ").toUpperCase()}</h3>
+            <h3 className="font-semibold text-text-primary">Your Admin Role: {(adminUser?.role ?? "unknown").replace("_", " ").toUpperCase()}</h3>
             <p className="text-sm text-text-secondary mt-1">
               {adminUser?.role === "super_admin" &&
                 "You have full access to all admin features and can manage other administrators."}

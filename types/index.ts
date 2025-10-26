@@ -102,11 +102,9 @@ export interface PaginationParams {
 // API RESPONSE TYPES
 // ============================================================================
 
-export interface APIResponse<T = any> {
-  data?: T;
-  error?: string;
-  message?: string;
-}
+export type APIResponse<T = any> = 
+  | { data: T; error?: never; message?: string }
+  | { data?: never; error: string; message?: string };
 
 export interface APIError {
   error: string;
@@ -164,6 +162,13 @@ export type ReportStatus = "pending" | "reviewing" | "resolved" | "dismissed" | 
 export interface ContentReport {
   id: string;
   reporter_id: string;
+  /**
+   * Type of content being reported:
+   * - "post": A post/media content
+   * - "comment": A comment on a post
+   * - "profile": Profile content (bio, avatar, profile information)
+   * - "user": User account itself (for account-level issues like impersonation, bot behavior)
+   */
   content_type: "post" | "comment" | "profile" | "user";
   content_id: string;
   reason: ReportReason;

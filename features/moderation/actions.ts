@@ -1,6 +1,7 @@
 "use server";
 
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { getServerSupabase } from "@/lib/supabaseServer";
 import { requireAdminRole, getCurrentAdmin } from "@/lib/admin/auth";
 import { createAuditLog } from "@/lib/admin/audit";
 
@@ -21,6 +22,13 @@ export type ReportReason =
 
 export type ReportStatus = "pending" | "reviewing" | "resolved" | "dismissed" | "escalated";
 export type ReportSeverity = "low" | "medium" | "high" | "critical";
+/**
+ * Content types for reporting:
+ * - "post": A post/media content
+ * - "comment": A comment on a post
+ * - "profile": Profile content (bio, avatar, profile information)
+ * - "user": User account itself (for account-level issues like impersonation, bot behavior)
+ */
 export type ContentType = "post" | "comment" | "profile" | "user";
 
 export type ResolutionAction =
@@ -57,15 +65,18 @@ export async function createReport(input: {
   reason: ReportReason;
   details?: string;
 }) {
-  const admin = getSupabaseAdmin();
+  // Use server client with user session context to get authenticated user
+  const supabase = getServerSupabase();
   
   // Get reporter's user ID from auth
-  const { data: { user } } = await admin.auth.getUser();
+  const { data: { user } } = await supabase.auth.getUser();
   
   if (!user) {
     throw new Error("Must be authenticated to report content");
   }
 
+  // Use admin client for database insert
+  const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("content_reports")
     .insert({
@@ -216,6 +227,7 @@ export async function updateReportStatus(
 
 /**
  * Remove content (post or comment)
+ * Uses atomic transaction to ensure consistency across all DB operations
  */
 export async function removeContent(
   reportId: string,
@@ -226,58 +238,32 @@ export async function removeContent(
   const adminUser = await requireAdminRole("moderator");
   const admin = getSupabaseAdmin();
 
-  // Delete the content
-  const table = contentType === "post" ? "posts" : "comments";
-  const { error: deleteError } = await admin
-    .from(table)
-    .delete()
-    .eq("id", contentId);
-
-  if (deleteError) {
-    throw new Error(`Failed to remove content: ${deleteError.message}`);
-  }
-
-  // Record moderation action
-  const { error: actionError } = await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "content_removed",
-      target_type: contentType,
-      target_id: contentId,
-      reason,
-      report_id: reportId,
-    });
-
-  if (actionError) {
-    throw new Error(`Failed to record action: ${actionError.message}`);
-  }
-
-  // Update report
-  await admin
-    .from("content_reports")
-    .update({
-      status: "resolved",
-      resolution_action: "content_removed",
-      resolution: reason,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", reportId);
-
-  // Audit log
-  await createAuditLog({
-    action: "content_removed",
-    resource_type: contentType,
-    resource_id: contentId,
-    details: { reason, report_id: reportId },
+  // Execute atomic transaction via stored procedure
+  // This performs: delete content, insert moderation_action, update content_report, and create audit_log
+  const { data, error } = await admin.rpc('remove_content_transaction', {
+    p_content_type: contentType,
+    p_content_id: contentId,
+    p_admin_id: adminUser.id,
+    p_report_id: reportId,
+    p_reason: reason
   });
+
+  if (error) {
+    // RPC errors include detailed context from the stored procedure
+    throw new Error(`Failed to remove content atomically: ${error.message}`);
+  }
+
+  // Verify we got a success response
+  if (!data || !data.success) {
+    throw new Error('Content removal transaction did not complete successfully');
+  }
 
   return { success: true };
 }
 
 /**
  * Warn a user
+ * Uses atomic transaction to prevent race conditions when multiple warnings occur concurrently
  */
 export async function warnUser(
   reportId: string,
@@ -287,66 +273,26 @@ export async function warnUser(
   const adminUser = await requireAdminRole("moderator");
   const admin = getSupabaseAdmin();
 
-  // Get or create user moderation status
-  const { data: existing } = await admin
-    .from("user_moderation_status")
-    .select("*")
-    .eq("user_id", userId)
-    .single();
-
-  if (existing) {
-    // Increment warning count
-    await admin
-      .from("user_moderation_status")
-      .update({
-        warning_count: existing.warning_count + 1,
-        last_warning_at: new Date().toISOString(),
-      })
-      .eq("user_id", userId);
-  } else {
-    // Create new record
-    await admin
-      .from("user_moderation_status")
-      .insert({
-        user_id: userId,
-        warning_count: 1,
-        last_warning_at: new Date().toISOString(),
-      });
-  }
-
-  // Record moderation action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_warned",
-      target_type: "user",
-      target_id: userId,
-      reason,
-      report_id: reportId,
-    });
-
-  // Update report
-  await admin
-    .from("content_reports")
-    .update({
-      status: "resolved",
-      resolution_action: "warning_sent",
-      resolution: reason,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", reportId);
-
-  // Audit log
-  await createAuditLog({
-    action: "user_warned",
-    resource_type: "user",
-    resource_id: userId,
-    details: { reason, report_id: reportId },
+  // Execute atomic transaction via stored procedure
+  // This performs: increment warning count, insert moderation_action, update content_report, and create audit_log
+  const { data, error } = await admin.rpc('warn_user_transaction', {
+    p_user_id: userId,
+    p_admin_id: adminUser.id,
+    p_report_id: reportId,
+    p_reason: reason
   });
 
-  return { success: true };
+  if (error) {
+    // RPC errors include detailed context from the stored procedure
+    throw new Error(`Failed to warn user atomically: ${error.message}`);
+  }
+
+  // Verify we got a success response
+  if (!data || !data.success) {
+    throw new Error('User warning transaction did not complete successfully');
+  }
+
+  return { success: true, warning_count: data.warning_count };
 }
 
 /**
@@ -364,8 +310,7 @@ export async function suspendUser(
   const suspensionEnds = new Date();
   suspensionEnds.setDate(suspensionEnds.getDate() + durationDays);
 
-  // Update or create user moderation status
-  await admin
+  const { error } = await admin
     .from("user_moderation_status")
     .upsert({
       user_id: userId,
@@ -374,8 +319,14 @@ export async function suspendUser(
       suspended_by: adminUser.id,
       suspended_at: new Date().toISOString(),
       suspension_reason: reason,
-    });
+      // Preserve warning_count on conflict, or initialize to 0
+      warning_count: 0,
+    })
+    .select();
 
+  if (error) {
+    throw new Error(`Failed to suspend user: ${error.message}`);
+  }
   // Record moderation action
   await admin
     .from("moderation_actions")
@@ -423,8 +374,8 @@ export async function banUser(
   const adminUser = await requireAdminRole("moderator");
   const admin = getSupabaseAdmin();
 
-  // Update or create user moderation status
-  await admin
+  // Use atomic upsert to prevent race conditions under concurrent ban requests
+  const { error: upsertError } = await admin
     .from("user_moderation_status")
     .upsert({
       user_id: userId,
@@ -432,7 +383,13 @@ export async function banUser(
       banned_by: adminUser.id,
       banned_at: new Date().toISOString(),
       ban_reason: reason,
-    });
+      warning_count: 0,
+    }, { onConflict: 'user_id' })
+    .select();
+
+  if (upsertError) {
+    throw new Error(`Failed to ban user: ${upsertError.message}`);
+  }
 
   // Record moderation action
   await admin
@@ -497,6 +454,9 @@ export async function dismissReport(
   }
 
   // Record moderation action
+  // Note: report_id is only used to reference the originating report when the target 
+  // is something else (e.g., user, post, comment). When the target is the report itself,
+  // report_id should be null to avoid redundancy with target_id.
   await admin
     .from("moderation_actions")
     .insert({
@@ -505,7 +465,7 @@ export async function dismissReport(
       target_type: "report",
       target_id: reportId,
       reason,
-      report_id: reportId,
+      report_id: null, // Set to null since target is the report itself
     });
 
   // Audit log
@@ -533,8 +493,11 @@ export async function getReportStats() {
     throw new Error(`Failed to get report stats: ${error.message}`);
   }
 
-  return data[0];
-}
+  if (!data || data.length === 0) {
+    throw new Error("No report statistics available");
+  }
+  
+  return data[0];}
 
 /**
  * Bulk action: Update multiple reports
@@ -548,12 +511,14 @@ export async function bulkUpdateReports(
   const admin = getSupabaseAdmin();
 
   const status = action === "dismiss" ? "dismissed" : "escalated";
+  const resolutionAction: ResolutionAction = action === "dismiss" ? "no_action" : "escalated_to_legal";
 
   const { data, error } = await admin
     .from("content_reports")
     .update({
       status,
       resolution: reason,
+      resolution_action: resolutionAction,
       reviewed_by: adminUser.id,
       reviewed_at: new Date().toISOString(),
     })
