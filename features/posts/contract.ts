@@ -31,8 +31,8 @@ export const UploadTargetInput = z.object({
 export type UploadTargetInput = z.infer<typeof UploadTargetInput>;
 
 export const CreatePostInput = z.object({
-  caption: z.string().trim().max(2000).optional(),
-  objectPath: z.string().min(1).optional(),
-  mediaType: MediaType.optional(),
+  caption: z.string().max(2000, "Caption must be 2000 characters or less").optional().nullable(),
+  mediaType: z.enum(["image", "video"]).optional().nullable(),
+  objectPath: z.string().optional().nullable(),
 });
 export type CreatePostInput = z.infer<typeof CreatePostInput>;
