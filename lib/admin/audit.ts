@@ -16,6 +16,18 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
+export interface AuditLogEntryWithAdmin extends AuditLogEntry {
+  admin: {
+    id: string;
+    role: string;
+    user: {
+      handle: string | null;
+      display_name: string | null;
+      avatar_url?: string | null;
+    };
+  };
+}
+
 export interface CreateAuditLogInput {
   action: string;
   resource_type: string;
@@ -135,7 +147,7 @@ export async function queryAuditLogs(params: QueryAuditLogsParams = {}) {
   }
 
   return {
-    logs: data as AuditLogEntry[],
+    logs: data as AuditLogEntryWithAdmin[],
     total: count || 0,
   };
 }
@@ -146,7 +158,7 @@ export async function queryAuditLogs(params: QueryAuditLogsParams = {}) {
 export async function getResourceAuditHistory(
   resource_type: string,
   resource_id: string
-): Promise<AuditLogEntry[]> {
+): Promise<AuditLogEntryWithAdmin[]> {
   await getCurrentAdmin(); // Require admin access
   
   const admin = getSupabaseAdmin();
@@ -169,7 +181,7 @@ export async function getResourceAuditHistory(
     throw new Error(`Failed to get resource audit history: ${error.message}`);
   }
 
-  return data as AuditLogEntry[];
+  return data as AuditLogEntryWithAdmin[];
 }
 
 /**
