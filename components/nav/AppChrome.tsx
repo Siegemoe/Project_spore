@@ -3,6 +3,7 @@
 import * as React from "react";
 import { TopBar } from "@/components/nav/TopBar";
 import { MobileTabBar } from "@/components/nav/MobileTabBar";
+import DesktopSidebar from "@/components/nav/DesktopSidebar";
 import { Sheet } from "@/components/ui/Sheet";
 import dynamic from "next/dynamic";
 import { CommentSheet } from "@/components/comments/CommentSheet";
@@ -30,8 +31,13 @@ export function AppChrome({ children }: { children: React.ReactNode }) {
   return (
     <>
       <TopBar />
-      <main className="container pt-4 pb-20">{children}</main>
-      <MobileTabBar onCreate={() => setOpen(true)} />
+      <DesktopSidebar />
+      {/* Add left padding on desktop for sidebar */}
+      <main className="container pt-4 pb-20 md:pl-60">{children}</main>
+      {/* Hide mobile tab bar on desktop */}
+      <div className="md:hidden">
+        <MobileTabBar onCreate={() => setOpen(true)} />
+      </div>
       <Sheet
         open={open}
         onClose={() => setOpen(false)}
