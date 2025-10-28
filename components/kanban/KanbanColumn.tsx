@@ -2,12 +2,13 @@
 
 import React from "react";
 import { cn } from "@/lib/cn";
-import { KanbanColumn, KanbanTask, KanbanColumnStatus } from "@/types";
+import type { KanbanColumn as KanbanColumnType, KanbanColumnStatus } from "@/types";
+import { KanbanTask } from "@/types";
 import { KanbanTaskCard } from "./KanbanTask";
 import { useKanbanDragDrop } from "./useKanbanDragDrop";
 
 interface KanbanColumnProps {
-  column: KanbanColumn;
+  column: KanbanColumnType;
   onTaskMove: (moveOperation: any) => void;
   onTaskClick: (task: KanbanTask) => void;
   onTaskEdit: (task: KanbanTask) => void;
@@ -41,15 +42,15 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
     onTaskEdit(task);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleColumnDragOver = (e: React.DragEvent) => {
     handleDragOver(e, column.id);
   };
 
-  const handleDragLeave = () => {
+  const handleColumnDragLeave = () => {
     handleDragLeave();
   };
 
-  const handleDrop = (e: React.DragEvent, index: number) => {
+  const handleColumnDrop = (e: React.DragEvent, index: number) => {
     const moveOperation = handleDrop(e, column.id, index);
     if (moveOperation) {
       onTaskMove(moveOperation);
@@ -91,8 +92,8 @@ export const KanbanColumn: React.FC<KanbanColumnProps> = ({
         getColumnColor(column.id),
         dragOverColumn === column.id && "ring-2 ring-accent ring-opacity-50"
       )}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
+      onDragOver={handleColumnDragOver}
+      onDragLeave={handleColumnDragLeave}
     >
       {/* Column Header */}
       <div className="p-4 border-b border-border-subtle">
