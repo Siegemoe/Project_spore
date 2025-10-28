@@ -2,13 +2,13 @@
 
 import React, { useState } from "react";
 import { cn } from "@/lib/cn";
-import { KanbanBoard, KanbanColumn, KanbanTask, KanbanColumnStatus, KanbanTaskUpdateInput } from "@/types";
+import type { KanbanBoard as KanbanBoardType, KanbanColumn as KanbanColumnType, KanbanTask, KanbanColumnStatus, KanbanTaskUpdateInput } from "@/types";
 import { KanbanColumn } from "./KanbanColumn";
 import { TaskDetailSheet } from "./TaskDetailSheet";
 import { TaskEditForm } from "./TaskEditForm";
 
 interface KanbanBoardProps {
-  board: KanbanBoard;
+  board: KanbanBoardType;
   onTaskUpdate: (taskId: string, updates: KanbanTaskUpdateInput) => void;
   onTaskCreate?: (projectId: string, task: Omit<KanbanTask, 'id' | 'created_at' | 'updated_at'>) => void;
 }
@@ -24,7 +24,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
   const [isEditFormOpen, setIsEditFormOpen] = useState(false);
 
   // Default columns for the board
-  const defaultColumns: KanbanColumn[] = [
+  const defaultColumns: KanbanColumnType[] = [
     {
       id: "assigned",
       title: "Assigned",
@@ -52,7 +52,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     },
   ];
 
-  const [columns, setColumns] = useState<KanbanColumn[]>(() => {
+  const [columns, setColumns] = useState<KanbanColumnType[]>(() => {
     if (board.columns) {
       return board.columns;
     }
