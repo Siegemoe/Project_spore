@@ -50,7 +50,7 @@ export const KanbanTaskCard: React.FC<KanbanTaskProps> = ({
             <div className="flex items-center mt-2 text-text-secondary text-sm">
               <Avatar
                 src={task.assignee.avatar_url}
-                alt={task.assignee.display_name || task.assignee.handle}
+                alt={task.assignee.display_name || task.assignee.handle || undefined}
                 size="sm"
                 className="mr-2"
               />

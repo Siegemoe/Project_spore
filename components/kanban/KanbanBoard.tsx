@@ -69,7 +69,7 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     }));
 
     setColumns(newColumns);
-  }, [board.columns]);
+  }, [board.columns, defaultColumns]);
 
   const handleTaskMove = (moveOperation: any) => {
     const { task, from, to } = moveOperation;

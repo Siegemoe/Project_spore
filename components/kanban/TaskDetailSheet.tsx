@@ -32,7 +32,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
   };
 
   return (
-    <Sheet isOpen={isOpen} onClose={onClose}>
+    <Sheet open={isOpen} onClose={onClose}>
       <div className="p-6 max-w-2xl mx-auto">
         {/* Header */}
         <div className="flex items-start justify-between mb-6">
@@ -64,7 +64,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
             <div className="flex items-center ml-3">
               <Avatar
                 src={task.creator?.avatar_url}
-                alt={task.creator?.display_name || task.creator?.handle}
+                alt={task.creator?.display_name || task.creator?.handle || undefined}
                 size="sm"
                 className="mr-2"
               />
@@ -84,7 +84,7 @@ export const TaskDetailSheet: React.FC<TaskDetailSheetProps> = ({
                 <>
                   <Avatar
                     src={task.assignee.avatar_url}
-                    alt={task.assignee.display_name || task.assignee.handle}
+                    alt={task.assignee.display_name || task.assignee.handle || undefined}
                     size="sm"
                     className="mr-2"
                   />
