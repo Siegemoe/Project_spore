@@ -11,6 +11,7 @@ const mockUsers: User[] = [
     handle: "alice",
     display_name: "Alice Johnson",
     avatar_url: null,
+    bio: "Product Manager",
     created_at: "2024-01-15T00:00:00Z",
     updated_at: "2024-01-15T00:00:00Z",
   },
@@ -19,6 +20,7 @@ const mockUsers: User[] = [
     handle: "bob",
     display_name: "Bob Smith",
     avatar_url: null,
+    bio: "Frontend Developer",
     created_at: "2024-01-10T00:00:00Z",
     updated_at: "2024-01-10T00:00:00Z",
   },
@@ -27,6 +29,7 @@ const mockUsers: User[] = [
     handle: "charlie",
     display_name: "Charlie Davis",
     avatar_url: null,
+    bio: "Backend Developer",
     created_at: "2024-01-05T00:00:00Z",
     updated_at: "2024-01-05T00:00:00Z",
   },
@@ -73,7 +76,7 @@ const mockTasks: KanbanTask[] = [
     created_at: "2024-01-18T00:00:00Z",
     updated_at: "2024-01-18T00:00:00Z",
     creator: mockUsers[0],
-    assignee: null,
+    assignee: undefined,
   },
   {
     id: "task-4",
@@ -115,7 +118,7 @@ const mockTasks: KanbanTask[] = [
     created_at: "2024-01-15T00:00:00Z",
     updated_at: "2024-01-15T00:00:00Z",
     creator: mockUsers[0],
-    assignee: null,
+    assignee: undefined,
   },
 ];
 
@@ -217,7 +220,7 @@ export default function KanbanDemoPage() {
             </div>
             <div>
               <h3 className="font-medium text-text-primary mb-2">🎨 Clean Interface</h3>
-              <p>Black and white design matching your project's aesthetic</p>
+              <p>Black and white design matching your project&apos;s aesthetic</p>
             </div>
           </div>
         </div>
