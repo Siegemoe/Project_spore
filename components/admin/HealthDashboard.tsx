@@ -2,11 +2,26 @@
 
 import { HealthMetrics, ComponentHealth } from "@/features/health/actions";
 
+interface APIPerformanceMetric {
+  endpoint: string;
+  total_requests: number;
+  avg_response_time?: number;
+  p95_response_time?: number;
+  error_rate?: number;
+}
+
+interface DatabaseStats {
+  users_count: number;
+  posts_count: number;
+  comments_count: number;
+  follows_count: number;
+}
+
 interface HealthDashboardProps {
   metrics: HealthMetrics;
   systemHealth: ComponentHealth[];
-  apiPerformance: any[];
-  databaseStats: any;
+  apiPerformance: APIPerformanceMetric[];
+  databaseStats: DatabaseStats;
 }
 
 export default function HealthDashboard({
@@ -137,19 +152,19 @@ export default function HealthDashboard({
                 </tr>
               </thead>
               <tbody>
-                {apiPerformance.map((perf: any, idx: number) => (
-                  <tr key={idx} className="border-b border-border-subtle">
+                {apiPerformance.map((perf) => (
+                  <tr key={perf.endpoint} className="border-b border-border-subtle">
                     <td className="py-2 px-3 font-mono text-xs">{perf.endpoint}</td>
                     <td className="text-right py-2 px-3">{perf.total_requests}</td>
                     <td className="text-right py-2 px-3">
-                      {Math.round(perf.avg_response_time || 0)}
+                      {Math.round(perf.avg_response_time ?? 0)}
                     </td>
                     <td className="text-right py-2 px-3">
-                      {Math.round(perf.p95_response_time || 0)}
+                      {Math.round(perf.p95_response_time ?? 0)}
                     </td>
                     <td className="text-right py-2 px-3">
-                      <span className={perf.error_rate > 5 ? "text-red-600 font-medium" : ""}>
-                        {(perf.error_rate || 0).toFixed(2)}%
+                      <span className={(perf.error_rate ?? 0) > 5 ? "text-red-600 font-medium" : ""}>
+                        {(perf.error_rate ?? 0).toFixed(2)}%
                       </span>
                     </td>
                   </tr>

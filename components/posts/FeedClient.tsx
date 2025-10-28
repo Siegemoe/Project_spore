@@ -24,17 +24,20 @@ export default function FeedClient({ initialPage, initialCursor, viewerId }: Pro
 
   // Realtime prepend: stage new items to avoid content shift; user can tap "New posts"
   useEffect(() => {
+    const handleRealtimeInsert = (payload: unknown) => {
+      if (payload && typeof payload === "object" && "new" in payload) {
+        const item = (payload as { new: unknown }).new;
+        if (item && typeof item === "object") {
+          setStaged((prev) => [item as FeedItem, ...prev]);
+        }
+      }
+    };
+
     const channel = (supabase as any)
       .channel("posts-insert")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "posts" },
-        (payload: any) => {
-          const row = payload.new as FeedItem;
-          setStaged((prev) => [row, ...prev]);
-        }
-      )
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, handleRealtimeInsert)
       .subscribe();
+    
     return () => {
       supabase.removeChannel(channel);
     };

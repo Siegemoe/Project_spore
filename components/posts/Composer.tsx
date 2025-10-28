@@ -128,8 +128,9 @@ export default function Composer({ userId, onPosted }: ComposerProps) {
       setFile(null);
       if (onPosted) onPosted();
       setNote("Posted!");
-    } catch (err: any) {
-      setNote(err?.message ?? "Could not post right now.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Could not post right now.";
+      setNote(message);
     } finally {
       setBusy(false);
     }

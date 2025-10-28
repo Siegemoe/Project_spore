@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseUrl, supabaseAnon } from "@/lib/supabaseClient";
+import type { CookieOptions } from "@supabase/ssr";
 
 /**
  * Next.js Middleware
@@ -21,14 +22,14 @@ export async function middleware(req: NextRequest) {
         get(name: string) {
           return req.cookies.get(name)?.value;
         },
-        set(name: string, value: string, options: any) {
+        set(name: string, value: string, options: CookieOptions) {
           res.cookies.set({
             name,
             value,
             ...options,
           });
         },
-        remove(name: string, options: any) {
+        remove(name: string, options: CookieOptions) {
           res.cookies.set({
             name,
             value: "",
@@ -40,8 +41,11 @@ export async function middleware(req: NextRequest) {
 
     // Touch the session so helper refreshes cookies when needed
     await supabase.auth.getSession();
-  } catch {
-    // Ignore; request will continue
+  } catch (err) {
+    // Log middleware errors for debugging; request continues with stale cookies
+    if (process.env.NODE_ENV === "development") {
+      console.warn("[Middleware] Supabase session sync failed:", err instanceof Error ? err.message : "Unknown error");
+    }
   }
 
   return res;

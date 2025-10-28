@@ -8,11 +8,29 @@ import {
   unblockIP,
 } from "@/features/security/actions";
 
+interface SecurityEvent {
+  id: string;
+  event_type: string;
+  severity: string;
+  ip_address?: string;
+  created_at: string;
+  user?: { display_name?: string; handle?: string; email?: string };
+  details?: Record<string, unknown>;
+  resolved: boolean;
+  resolution_notes?: string;
+}
+
+interface BlockedIP {
+  id: string;
+  ip_address: string;
+  reason: string;
+}
+
 interface SecurityDashboardProps {
-  initialEvents: any[];
+  initialEvents: SecurityEvent[];
   totalEvents: number;
-  highRiskAlerts: any[];
-  blockedIPs: any[];
+  highRiskAlerts: SecurityEvent[];
+  blockedIPs: BlockedIP[];
   currentPage: number;
   pageSize: number;
   filters: {
@@ -47,7 +65,7 @@ export default function SecurityDashboard({
   };
 
   // Action handlers
-  const handleResolve = async (event: any) => {
+  const handleResolve = async (event: SecurityEvent) => {
     const notes = prompt("Resolution notes:", "Investigated and resolved");
     if (!notes) return;
     
@@ -55,8 +73,9 @@ export default function SecurityDashboard({
     try {
       await resolveSecurityEvent(event.id, notes);
       router.refresh();
-    } catch (error: any) {
-      alert(`Failed: ${error.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      alert(`Failed: ${message}`);
     } finally {
       setActioningEvent(null);
     }
@@ -67,13 +86,14 @@ export default function SecurityDashboard({
     if (!reason) return;
     
     const durationStr = prompt("Block duration in hours (leave empty for permanent):", "24");
-    const durationHours = durationStr ? parseInt(durationStr) : undefined;
+    const durationHours = durationStr ? parseInt(durationStr, 10) : undefined;
     
     try {
       await blockIP(ipAddress, reason, durationHours);
       router.refresh();
-    } catch (error: any) {
-      alert(`Failed: ${error.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      alert(`Failed: ${message}`);
     }
   };
 
@@ -84,8 +104,9 @@ export default function SecurityDashboard({
     try {
       await unblockIP(ipAddress, reason);
       router.refresh();
-    } catch (error: any) {
-      alert(`Failed: ${error.message}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unknown error";
+      alert(`Failed: ${message}`);
     }
   };
 
@@ -126,7 +147,7 @@ export default function SecurityDashboard({
             🚨 High Priority Alerts ({highRiskAlerts.length})
           </h2>
           <div className="space-y-2">
-            {highRiskAlerts.map((alert: any) => (
+          {highRiskAlerts.map((alert) => (
               <div key={alert.id} className="bg-white p-3 rounded border border-red-200">
                 <div className="flex items-center gap-2 mb-1">
                   <span>{getEventTypeIcon(alert.event_type)}</span>
@@ -156,7 +177,7 @@ export default function SecurityDashboard({
             Blocked IP Addresses ({blockedIPs.length})
           </h2>
           <div className="space-y-2">
-            {blockedIPs.map((blocked: any) => (
+          {blockedIPs.map((blocked) => (
               <div key={blocked.id} className="flex items-center justify-between p-3 bg-[rgb(var(--surface-muted))] rounded">
                 <div>
                   <span className="font-mono text-sm font-medium">{blocked.ip_address}</span>
@@ -252,7 +273,7 @@ export default function SecurityDashboard({
                         IP: <span className="font-mono">{event.ip_address}</span>
                         {!event.resolved && (
                           <button
-                            onClick={() => handleBlockIP(event.ip_address)}
+                            onClick={() => handleBlockIP(event.ip_address ?? "")}
                             className="text-xs text-red-600 hover:underline"
                           >
                             Block IP
@@ -296,7 +317,10 @@ export default function SecurityDashboard({
       {totalPages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button
-            onClick={() => router.push(`/admin/security?page=${currentPage - 1}` as any)}
+            onClick={() => {
+              const prevPage = `/admin/security?page=${currentPage - 1}`;
+              router.push(prevPage as any);
+            }}
             disabled={currentPage === 1}
             className="btn btn-sm"
           >
@@ -306,7 +330,10 @@ export default function SecurityDashboard({
             Page {currentPage} of {totalPages}
           </span>
           <button
-            onClick={() => router.push(`/admin/security?page=${currentPage + 1}` as any)}
+            onClick={() => {
+              const nextPage = `/admin/security?page=${currentPage + 1}`;
+              router.push(nextPage as any);
+            }}
             disabled={currentPage === totalPages}
             className="btn btn-sm"
           >
