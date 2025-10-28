@@ -25,6 +25,80 @@ export interface UserProfile extends User {
 }
 
 // ============================================================================
+// KANBAN TYPES
+// ============================================================================
+
+export type KanbanColumnStatus = "assigned" | "in_progress" | "backlog" | "in_review" | "complete";
+
+export interface KanbanTask {
+  id: string;
+  title: string;
+  description: string | null;
+  creator_id: string;
+  assigned_to: string | null;
+  project_id: string;
+  status: KanbanColumnStatus;
+  position: number;
+  created_at: string;
+  updated_at: string;
+  
+  // Optional expanded fields
+  creator?: User;
+  assignee?: User;
+  connections?: TaskConnection[];
+}
+
+export interface TaskConnection {
+  id: string;
+  from_task_id: string;
+  to_task_id: string;
+  connection_type: "blocks" | "depends_on" | "related_to";
+  created_at: string;
+  
+  // Optional expanded fields
+  from_task?: KanbanTask;
+  to_task?: KanbanTask;
+}
+
+export interface KanbanColumn {
+  id: KanbanColumnStatus;
+  title: string;
+  tasks: KanbanTask[];
+}
+
+export interface KanbanBoard {
+  id: string;
+  project_id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  
+  // Optional expanded fields
+  columns?: KanbanColumn[];
+}
+
+export interface KanbanBoardCreateInput {
+  project_id: string;
+  name: string;
+}
+
+export interface KanbanTaskCreateInput {
+  title: string;
+  description?: string;
+  assigned_to?: string;
+  status: KanbanColumnStatus;
+  project_id: string;
+}
+
+export interface KanbanTaskUpdateInput {
+  title?: string;
+  description?: string;
+  assigned_to?: string;
+  status?: KanbanColumnStatus;
+  position?: number;
+}
+
+// ============================================================================
 // POST TYPES
 // ============================================================================
 
@@ -254,7 +328,6 @@ export interface ValidationError {
 // ============================================================================
 // UTILITY TYPES
 // ============================================================================
-
 
 export type NonNullableFields<T> = {
   [P in keyof T]: NonNullable<T[P]>;

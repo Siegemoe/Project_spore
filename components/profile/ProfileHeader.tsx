@@ -1,10 +1,12 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import FollowButton from "@/components/follows/FollowButton";
 import ConnectButton from "@/components/github/ConnectButton";
+import EditProfileSheet from "@/components/profile/EditProfileSheet";
 
 export type ProfileHeaderProps = {
   user: {
@@ -13,11 +15,17 @@ export type ProfileHeaderProps = {
     display_name: string | null;
     avatar_url: string | null;
     bio: string | null;
+    created_at?: string | null;
   };
   counts: { followers: number; following: number };
   viewerId?: string;
   initialIsFollowing?: boolean;
   hasGitAccount?: boolean;
+  reposCount?: number;
+  githubLogin?: string | null;
+  accountAgeText?: string;
+  contributionsTotal?: number;
+  variant?: "compact" | "full";
 };
 
 export function ProfileHeader({
@@ -25,45 +33,73 @@ export function ProfileHeader({
   counts,
   viewerId,
   initialIsFollowing = false,
-  hasGitAccount = false
+  hasGitAccount = false,
+  reposCount,
+  githubLogin,
+  accountAgeText,
+  contributionsTotal,
+  variant = "compact",
 }: ProfileHeaderProps) {
   const isSelf = viewerId === user.id;
+  const [openEdit, setOpenEdit] = React.useState(false);
+
+  if (variant === "full") {
+    return (
+      <section className="relative w-full overflow-hidden">
+        <div className="relative z-0 h-36 sm:h-40 w-full overflow-hidden bg-white" style={{backgroundImage: "linear-gradient(135deg, rgba(16,185,129,0.9), rgba(5,150,105,0.95)), radial-gradient(600px 180px at -10% -20%, rgba(255,255,255,0.9), transparent 60%), radial-gradient(800px 220px at 110% -10%, rgba(255,255,255,0.7), transparent 60%)", backgroundSize: "cover", backgroundPosition: "center"}} >
+          {githubLogin && <a href={`https://github.com/${encodeURIComponent(githubLogin)}`} target="_blank" rel="noreferrer" className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-full border border-white/50 bg-white/20 px-2 py-1 text-xs text-white backdrop-blur hover:bg-white/30" aria-label="Open GitHub profile"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.64 0 8.13c0 3.6 2.29 6.65 5.47 7.73.4.08.55-.18.55-.39 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.16-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.84.72 1.21 1.87.87 2.33.66.07-.53.28-.87.51-1.07-1.78-.2-3.64-.9-3.64-4.01 0-.89.31-1.62.82-2.19-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.84.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.06 2.2-.84 2.2-.84.44 1.1.16 1.92.08 2.12.51.57.82 1.3.82 2.19 0 3.12-1.87 3.8-3.65 4 .29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.47.55.39A8.14 8.14 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z" /></svg>@{githubLogin}</a>}
+        </div>
+        <div className="relative z-20">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6 -mt-12 sm:-mt-14 grid grid-cols-[5rem,1fr] items-end gap-4 sm:gap-6">
+            <Avatar src={user.avatar_url || undefined} name={user.display_name || user.handle || "@"} size="lg" className="h-20 w-20 sm:h-24 sm:w-24 ring-2 ring-white rounded-full shrink-0 translate-y-[10px] sm:translate-y-[12px]" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-end justify-between gap-2">
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h1 className="truncate text-xl sm:text-2xl leading-tight font-semibold text-text-primary">{user.display_name || user.handle}</h1>
+                    <span className="inline-flex h-5 items-center rounded-full border border-border-subtle px-2 text-[11px] text-text-secondary">✓</span>
+                  </div>
+                  <p className="truncate text-sm text-text-secondary">@{user.handle} {githubLogin && <a href={`https://github.com/${encodeURIComponent(githubLogin)}`} target="_blank" rel="noreferrer" className="ml-2 inline-flex items-center gap-1 rounded-full border border-border-subtle px-2 py-0.5 text-[11px] text-text-primary hover:bg-[rgb(var(--surface-muted))]"><svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.64 0 8.13c0 3.6 2.29 6.65 5.47 7.73.4.08.55-.18.55-.39 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.5-2.69-.96-.09-.23-.48-.96-.82-1.16-.28-.15-.68-.52-.01-.53.63-.01 1.08.59 1.23.84.72 1.21 1.87.87 2.33.66.07-.53.28-.87.51-1.07-1.78-.2-3.64-.9-3.64-4.01 0-.89.31-1.62.82-2.19-.08-.2-.36-1.02.08-2.12 0 0 .67-.22 2.2.84.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.06 2.2-.84 2.2-.84.44 1.1.16 1.92.08 2.12.51.57.82 1.3.82 2.19 0 3.12-1.87 3.8-3.65 4 .29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.19 0 .21.15.47.55.39A8.14 8.14 0 0 0 16 8.13C16 3.64 12.42 0 8 0Z" /></svg>{githubLogin}</a>}</p>
+                </div>
+                <div className="flex flex-col gap-2 items-stretch sm:items-end shrink-0">
+                  {isSelf && <><Button variant="outline" size="sm" className="h-8 px-3 text-xs" onClick={() => setOpenEdit(true)}>Edit Profile</Button><EditProfileSheet open={openEdit} onOpenChange={setOpenEdit} initial={{display_name: user.display_name ?? null, bio: user.bio ?? null}} /></>}
+                  {!isSelf && <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={initialIsFollowing ?? false} />}
+                </div>
+              </div>
+              {user.bio && <p className="mt-2 whitespace-pre-wrap text-[15px] leading-relaxed line-clamp-3">{user.bio}</p>}
+            </div>
+            <div className="col-start-1 col-span-2 mt-3 text-sm">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+                <Link href={`/u/${encodeURIComponent(user.handle!)}/followers`} className="text-text-primary hover:opacity-80"><strong className="font-semibold">{counts.followers}</strong> followers</Link>
+                <Link href={`/u/${encodeURIComponent(user.handle!)}/following`} className="text-text-primary hover:opacity-80"><strong className="font-semibold">{counts.following}</strong> following</Link>
+                {typeof reposCount === "number" && <span className="text-text-secondary"><strong className="text-text-primary font-semibold">{reposCount}</strong> repos</span>}
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-6">
+                {typeof contributionsTotal === "number" && <span className="text-text-secondary"><strong className="text-text-primary font-semibold">{contributionsTotal}</strong> contributions</span>}
+                {accountAgeText && <span className="text-text-secondary"><strong className="text-text-primary font-semibold">{accountAgeText}</strong> age</span>}
+              </div>
+            </div>
+            <div className="col-start-1 col-span-2 mt-3 border-t border-border-subtle" />
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <header className="card p-4 sm:p-6 flex items-start gap-4">
       <Avatar src={user.avatar_url || undefined} name={user.display_name || user.handle || "@"} size="lg" />
-
       <div className="flex-1 min-w-0">
-        <h1 className="truncate text-2xl font-semibold text-text-primary">
-          {user.display_name || user.handle || "Unknown"}
-        </h1>
+        <h1 className="truncate text-2xl font-semibold text-text-primary">{user.display_name || user.handle || "Unknown"}</h1>
         {user.handle ? <p className="truncate text-text-secondary">@{user.handle}</p> : null}
-
         {user.bio ? <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-wrap">{user.bio}</p> : null}
-
         <div className="mt-3 flex items-center gap-4 text-sm text-text-secondary">
-          <span>
-            <strong className="text-text-primary">{counts.followers}</strong> followers
-          </span>
-          <span>
-            <strong className="text-text-primary">{counts.following}</strong> following
-          </span>
+          <span><strong className="text-text-primary">{counts.followers}</strong> followers</span>
+          <span><strong className="text-text-primary">{counts.following}</strong> following</span>
         </div>
-
-        {isSelf && !hasGitAccount ? (
-          <div className="mt-3">
-            <ConnectButton />
-          </div>
-        ) : null}
+        {isSelf && !hasGitAccount ? <div className="mt-3"><ConnectButton /></div> : null}
       </div>
-
-      {!isSelf ? (
-        <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={initialIsFollowing} />
-      ) : (
-        <Button variant="outline" size="sm" aria-label="Edit profile" title="Edit profile" disabled>
-          Edit
-        </Button>
-      )}
+      {!isSelf ? <FollowButton followerId={viewerId} followeeId={user.id} initialIsFollowing={initialIsFollowing} /> : <Button variant="outline" size="sm" aria-label="Edit profile" title="Edit profile" disabled>Edit</Button>}
     </header>
   );
 }
