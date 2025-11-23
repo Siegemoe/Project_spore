@@ -2,7 +2,7 @@
 
 **Date**: 2025-11-23
 **Status**: Planning Phase
-**Focus**: Mobile-first Projects platform with WebSockets
+**Focus**: Mobile-first Projects platform with WebSockets (**No Kanban in MVP**)
 
 ---
 
@@ -201,8 +201,12 @@ project-spore-v2/
 │   │   │   ├── projects/        # Project components
 │   │   │   │   ├── ProjectCard.svelte
 │   │   │   │   ├── ProjectFeed.svelte
-│   │   │   │   ├── KanbanBoard.svelte
+│   │   │   │   ├── ProjectDetail.svelte
 │   │   │   │   └── MemberList.svelte
+│   │   │   ├── posts/           # Post components
+│   │   │   │   ├── PostCard.svelte
+│   │   │   │   ├── PostComposer.svelte
+│   │   │   │   └── CommentList.svelte
 │   │   │   ├── shared/          # Shared UI
 │   │   │   │   ├── Button.svelte
 │   │   │   │   ├── Card.svelte
@@ -243,8 +247,6 @@ project-spore-v2/
 │   │   │   └── [slug]/          # Individual project
 │   │   │       ├── +page.svelte
 │   │   │       ├── +page.server.ts
-│   │   │       ├── kanban/
-│   │   │       │   └── +page.svelte
 │   │   │       └── settings/
 │   │   │           └── +page.svelte
 │   │   │
@@ -300,14 +302,10 @@ type WSEvent =
   | { type: 'project:member_joined', projectId: string, user: User }
   | { type: 'project:member_left', projectId: string, userId: string }
 
-  // Kanban
-  | { type: 'kanban:card_created', projectId: string, card: KanbanCard }
-  | { type: 'kanban:card_moved', projectId: string, cardId: string, columnId: string, position: number }
-  | { type: 'kanban:card_updated', projectId: string, card: KanbanCard }
-
   // Feed
   | { type: 'feed:new_post', projectId: string, post: Post }
   | { type: 'feed:post_updated', projectId: string, postId: string, data: Partial<Post> }
+  | { type: 'feed:post_deleted', projectId: string, postId: string }
   | { type: 'feed:new_comment', postId: string, comment: Comment }
 
   // Presence
@@ -324,8 +322,7 @@ type WSEvent =
 // Users auto-join rooms based on context
 type Room =
   | `user:${userId}`              // Personal notifications
-  | `project:${projectId}`        // Project updates
-  | `project:${projectId}:kanban` // Kanban board changes
+  | `project:${projectId}`        // Project updates & posts
   | `post:${postId}`              // Post comments
 ```
 
@@ -359,11 +356,14 @@ export function connectWebSocket() {
 
 function handleWSEvent(event: WSEvent) {
   switch (event.type) {
-    case 'kanban:card_moved':
-      // Update kanban store
-      break;
     case 'feed:new_post':
       // Update feed store
+      break;
+    case 'feed:new_comment':
+      // Update comments
+      break;
+    case 'project:member_joined':
+      // Update member list
       break;
     // ... more handlers
   }
@@ -372,7 +372,7 @@ function handleWSEvent(event: WSEvent) {
 
 ---
 
-## 🗄️ Prisma Schema (Projects Focus)
+## 🗄️ Prisma Schema (Projects Focus - No Kanban)
 
 ```prisma
 // prisma/schema.prisma
@@ -397,6 +397,7 @@ model User {
   emailPublic  Boolean  @default(false) @map("email_public")
   websites     Json?    // Array of URLs
   githubLogin  String?  @map("github_login")
+  githubUserId String?  @map("github_user_id")
   createdAt    DateTime @default(now()) @map("created_at")
 
   // Relations
@@ -405,7 +406,6 @@ model User {
   posts            Post[]
   comments         Comment[]
   sessions         Session[]
-  kanbanCards      KanbanCard[]     @relation("CardAssignee")
 
   @@map("users")
 }
@@ -432,6 +432,11 @@ model Project {
   githubRepoUrl String?  @map("github_repo_url")
   isPublic      Boolean  @default(true) @map("is_public")
 
+  // GitHub sync metadata
+  githubStars   Int?     @map("github_stars")
+  githubForks   Int?     @map("github_forks")
+  lastSyncedAt  DateTime? @map("last_synced_at")
+
   createdBy String   @map("created_by")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -440,8 +445,6 @@ model Project {
   creator      User            @relation("ProjectCreator", fields: [createdBy], references: [id])
   members      ProjectMember[]
   posts        Post[]
-  kanbanColumns KanbanColumn[]
-  kanbanCards   KanbanCard[]
 
   @@map("projects")
 }
@@ -460,40 +463,7 @@ model ProjectMember {
   @@map("project_members")
 }
 
-// KANBAN
-model KanbanColumn {
-  id        String   @id @default(uuid())
-  projectId String   @map("project_id")
-  name      String
-  position  Int
-  createdAt DateTime @default(now()) @map("created_at")
-
-  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  cards   KanbanCard[]
-
-  @@map("kanban_columns")
-}
-
-model KanbanCard {
-  id          String   @id @default(uuid())
-  columnId    String   @map("column_id")
-  projectId   String   @map("project_id")
-  title       String
-  description String?
-  assigneeId  String?  @map("assignee_id")
-  position    Int
-  createdBy   String   @map("created_by")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  column   KanbanColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  project  Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  assignee User?        @relation("CardAssignee", fields: [assigneeId], references: [id])
-
-  @@map("kanban_cards")
-}
-
-// POSTS (simplified - project-focused)
+// POSTS (project-focused)
 model Post {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
@@ -507,6 +477,7 @@ model Post {
   project  Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   comments Comment[]
 
+  @@index([projectId, createdAt])
   @@map("posts")
 }
 
@@ -520,13 +491,14 @@ model Comment {
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([postId, createdAt])
   @@map("comments")
 }
 ```
 
 ---
 
-## 📋 Migration Phases
+## 📋 Migration Phases (Simplified - 5 Weeks)
 
 ### Phase 0: Foundation (Week 1)
 **Goal**: Set up new SvelteKit project with authentication
@@ -559,7 +531,7 @@ model Comment {
 ---
 
 ### Phase 2: Projects CRUD (Week 3)
-**Goal**: Basic project creation and viewing
+**Goal**: Basic project creation and viewing - **Make projects explorable!**
 
 - [ ] Migrate `projects` schema to Prisma
 - [ ] Create project creation flow
@@ -569,71 +541,68 @@ model Comment {
 - [ ] Project detail page
   - Project info display
   - Member list
-  - Invite flow (email)
+  - Invite flow (email or username)
 - [ ] Project discovery feed
   - Card grid (mobile: 1 col, tablet: 2 col, desktop: 3 col)
   - Infinite scroll
+  - Search/filter (by name, GitHub repo)
 - [ ] Permission system (owner/admin/contributor)
+- [ ] GitHub integration
+  - Fetch repo metadata (stars, forks, description)
+  - Display on project card
 
-**Deliverable**: Users can create, view, and join projects
+**Deliverable**: ✨ **Users can explore, create, view, and join projects!**
 
 ---
 
-### Phase 3: WebSockets + Kanban (Week 4-5)
-**Goal**: Real-time collaborative kanban boards
+### Phase 3: Real-time Project Updates (Week 4)
+**Goal**: WebSocket integration for live project activity
 
 - [ ] Set up Cloudflare Durable Objects for WebSocket
 - [ ] Implement WebSocket connection store
 - [ ] Create room-based event system
-- [ ] Migrate kanban schema to Prisma
-- [ ] Build mobile-first kanban board
-  - Touch-optimized drag & drop (svelte-dnd-action)
-  - Column view (swipe horizontally on mobile)
-  - Card creation/editing
-  - Assignment UI
-- [ ] Real-time card movement
-  - Optimistic updates
-  - Conflict resolution
-  - Presence indicators (who's viewing)
-- [ ] Mobile gestures
-  - Swipe card to move column
-  - Pull to refresh
-  - Long-press for options
+- [ ] Real-time project updates
+  - New member joins → update member count
+  - Project info changes → update card
+  - Member presence (who's viewing)
+- [ ] Real-time notifications
+  - New member joined your project
+  - Someone invited you to a project
+  - Project updates
 
-**Deliverable**: Real-time collaborative kanban on mobile
+**Deliverable**: Live project updates via WebSocket
 
 ---
 
-### Phase 4: Project Feed & Posts (Week 6)
+### Phase 4: Project Feed & Posts (Week 5)
 **Goal**: Project-specific activity feed
 
 - [ ] Migrate posts/comments schema
 - [ ] Project feed component
   - Filter: all posts / my projects / specific project
-  - Mobile-optimized cards
+  - Mobile-optimized post cards
 - [ ] Post composer (mobile-first)
   - Image/video upload to R2
   - Project selector
   - Caption input
 - [ ] Real-time new posts via WebSocket
   - Toast notification
-  - Auto-insert at top
+  - Auto-insert at top of feed
 - [ ] Comments
   - Mobile sheet/modal
-  - Real-time updates
+  - Real-time comment updates
+- [ ] Pull-to-refresh on mobile
 
-**Deliverable**: Users can post to projects and see real-time updates
+**Deliverable**: Users can post to projects and see real-time activity
 
 ---
 
-### Phase 5: Polish & Mobile Features (Week 7)
-**Goal**: PWA features and mobile optimization
+### Phase 5: Polish & PWA (Week 6 - Optional)
+**Goal**: Production-ready mobile experience
 
 - [ ] Service Worker for offline caching
 - [ ] PWA manifest (installable)
-- [ ] Pull-to-refresh on feed
 - [ ] Swipe gestures (back navigation)
-- [ ] Push notifications (via WebSocket)
 - [ ] Image optimization (lazy loading, blur-up)
 - [ ] Haptic feedback (mobile)
 - [ ] Dark mode
@@ -642,25 +611,6 @@ model Comment {
   - Core Web Vitals optimization
 
 **Deliverable**: Production-ready mobile PWA
-
----
-
-### Phase 6: GitHub Integration (Week 8)
-**Goal**: Deep GitHub integration for projects
-
-- [ ] GitHub repo syncing
-  - Fetch commits, issues, PRs
-  - Display in project sidebar
-- [ ] Automatic project updates from GitHub
-  - Webhook handler
-  - Commit activity feed
-- [ ] Contributor sync
-  - Auto-invite GitHub collaborators
-- [ ] GitHub-linked kanban cards
-  - Link card to issue/PR
-  - Status sync
-
-**Deliverable**: Projects auto-sync with GitHub repos
 
 ---
 
@@ -690,7 +640,7 @@ wrangler publish
 
 ### Production Options
 
-**Option A: Full Cloudflare**
+**Option A: Full Cloudflare (Recommended)**
 - SvelteKit on Cloudflare Pages
 - WebSockets via Durable Objects
 - R2 for storage
@@ -711,27 +661,28 @@ wrangler publish
 
 ## 📊 Feature Priority (Projects Focus)
 
-### MVP (Must-Have)
+### MVP (Must-Have - 5 Weeks)
 1. ✅ Auth (GitHub OAuth)
 2. ✅ Project creation & discovery
 3. ✅ Project members & permissions
-4. ✅ Kanban board (basic)
-5. ✅ Real-time kanban updates (WebSocket)
-6. ✅ Mobile-first UI
+4. ✅ Real-time project updates (WebSocket)
+5. ✅ Mobile-first UI
+6. ✅ Project feed & posts
 
 ### Phase 2 (Nice-to-Have)
-1. Project feed & posts
-2. Comments
-3. GitHub integration
-4. Project settings
-5. Member invites
+1. Comments
+2. Advanced GitHub integration (commits, issues sync)
+3. Project settings page
+4. User profiles
+5. Notifications page
 
-### Phase 3 (Future)
-1. Project analytics
-2. Advanced kanban (labels, due dates)
+### Phase 3 (Future - Post-Launch)
+1. Kanban boards (collaborative task management)
+2. Project analytics
 3. Project templates
 4. Export/import
 5. API for integrations
+6. Direct messaging
 
 ---
 
@@ -775,11 +726,19 @@ wrangler publish
       </p>
     {/if}
 
-    <!-- Footer: GitHub link -->
+    <!-- Footer: GitHub link + stats -->
     {#if project.githubRepoUrl}
-      <div class="flex items-center gap-2 text-xs text-gray-500">
-        <svg class="w-4 h-4"><!-- GitHub icon --></svg>
-        <span class="truncate">{project.githubRepoUrl}</span>
+      <div class="flex items-center gap-3 text-xs text-gray-500">
+        <div class="flex items-center gap-1">
+          <svg class="w-4 h-4"><!-- GitHub icon --></svg>
+          <span class="truncate flex-1">{project.githubRepoUrl.split('/').slice(-2).join('/')}</span>
+        </div>
+        {#if project.githubStars}
+          <div class="flex items-center gap-1">
+            <svg class="w-3 h-3"><!-- Star icon --></svg>
+            <span>{project.githubStars}</span>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -802,12 +761,12 @@ wrangler publish
     { name: 'Projects', href: '/', icon: 'home' },
     { name: 'Explore', href: '/explore', icon: 'compass' },
     { name: 'Create', href: '/projects/new', icon: 'plus' },
-    { name: 'Notifications', href: '/notifications', icon: 'bell' },
+    { name: 'Activity', href: '/activity', icon: 'bell' },
     { name: 'Profile', href: '/u/me', icon: 'user' }
   ];
 </script>
 
-<nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden safe-area-bottom">
+<nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 md:hidden safe-area-bottom z-50">
   <div class="flex justify-around">
     {#each tabs as tab}
       <a
@@ -853,7 +812,7 @@ wrangler publish
 | **Time to Interactive** | <3.0s | Code splitting, defer non-critical JS |
 | **Cumulative Layout Shift** | <0.1 | Reserve space for images, no dynamic ads |
 | **First Input Delay** | <100ms | Optimize event handlers, use Web Workers |
-| **Bundle Size** | <200KB | Tree shaking, dynamic imports |
+| **Bundle Size** | <150KB | Tree shaking, dynamic imports, no Kanban libs |
 
 ---
 
@@ -890,10 +849,11 @@ wrangler publish
 - [ ] Page load <3s on 3G
 - [ ] Zero layout shift (CLS = 0)
 
-### User Experience
+### User Experience (Updated)
 - [ ] Can create project in <60s (mobile)
-- [ ] Kanban drag works on first try (mobile)
+- [ ] Can browse and join projects easily
 - [ ] Real-time updates appear <1s after change
+- [ ] GitHub repo info displays correctly
 - [ ] App installable as PWA
 - [ ] Works offline (cached pages)
 
@@ -920,7 +880,6 @@ wrangler publish
 - **Cloudflare Pages**: https://developers.cloudflare.com/pages/
 - **Cloudflare Durable Objects**: https://developers.cloudflare.com/durable-objects/
 - **Cloudflare R2**: https://developers.cloudflare.com/r2/
-- **Svelte DnD Action** (drag & drop): https://github.com/isaacHagoel/svelte-dnd-action
 - **TailwindCSS**: https://tailwindcss.com/
 
 ---
@@ -931,7 +890,29 @@ wrangler publish
 2. **Choose deployment strategy** (Full Cloudflare vs Hybrid vs Docker)
 3. **Set up new repo** (`project-spore-v2`)
 4. **Begin Phase 0** (SvelteKit + Auth)
-5. **Parallel work**: Design mobile mockups for key screens
+5. **Optional**: Design mobile mockups for project cards
+
+---
+
+## 📝 Summary of Changes
+
+**What's Different (No Kanban):**
+- ✅ Timeline reduced from 8 weeks to **5-6 weeks**
+- ✅ Simpler database schema (no kanban tables)
+- ✅ Fewer WebSocket events (no kanban:* events)
+- ✅ Focus on **project discovery and exploration**
+- ✅ GitHub integration prioritized
+- ✅ Faster time to MVP
+- 🚀 **Users can explore projects immediately after Phase 2 (Week 3)**
+
+**What's Kept:**
+- ✅ Mobile-first design
+- ✅ WebSockets for real-time updates
+- ✅ Project permissions & members
+- ✅ Project feed & posts
+- ✅ PWA capabilities
+
+**Kanban can be added later as Phase 3+ feature after users are actively exploring projects!**
 
 ---
 
