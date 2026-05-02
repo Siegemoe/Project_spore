@@ -46,7 +46,14 @@ export async function GET(req: Request) {
         mediaType: true,
         createdAt: true,
       },
-    });
+    }) as Array<{
+      id: string;
+      userId: string;
+      caption: string | null;
+      mediaUrl: string | null;
+      mediaType: string | null;
+      createdAt: Date;
+    }>;
 
     const rows = posts.map((p) => ({
       id: p.id,
