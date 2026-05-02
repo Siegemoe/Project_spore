@@ -1,17 +1,17 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabaseClient";
 import { MEDIA_BUCKET, ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, MAX_UPLOAD_BYTES } from "@/lib/config";
 import { getUploadTarget, createPost } from "@/features/posts/actions";
-import type { Route } from "next";
 
 /**
- * Temporary prop signature — until auth is wired, we accept userId explicitly.
- * In Stage 1 we will derive userId from the server session and drop this prop.
+ * Composer for creating new posts.
+ * Derives userId from Auth.js session when not provided explicitly.
  */
 type ComposerProps = {
-  userId?: string; // optional; auto-detect via Supabase auth when not provided
+  userId?: string;
   onPosted?: () => void;
 };
 
@@ -19,31 +19,13 @@ const IMAGE_TYPES = new Set<string>(ALLOWED_IMAGE_TYPES as readonly string[]);
 const VIDEO_TYPES = new Set<string>(ALLOWED_VIDEO_TYPES as readonly string[]);
 
 export default function Composer({ userId, onPosted }: ComposerProps) {
+  const { data: session } = useSession();
   const [file, setFile] = useState<File | null>(null);
   const [caption, setCaption] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
-  const [viewerId, setViewerId] = useState<string | undefined>(userId);
 
-  // Auto-detect viewer from Supabase auth if not provided
-  useEffect(() => {
-    let cancelled = false;
-    async function loadUser() {
-      if (viewerId) return;
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!cancelled) {
-          setViewerId(data.user?.id);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    loadUser();
-    return () => {
-      cancelled = true;
-    };
-  }, [viewerId]);
+  const viewerId = userId ?? session?.user?.id;
 
   const contentType = useMemo(() => file?.type ?? "", [file]);
   const mediaType = useMemo<"image" | "video" | null>(() => {

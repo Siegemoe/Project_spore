@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSession } from "next-auth/react";
 import { supabase } from "@/lib/supabaseClient";
 import { MEDIA_BUCKET } from "@/lib/config";
 
@@ -13,21 +14,11 @@ import { MEDIA_BUCKET } from "@/lib/config";
  * Visit: /dev/storage-test
  */
 export default function StorageTestPage() {
-  const [uid, setUid] = React.useState<string | null>(null);
+  const { data: session } = useSession();
+  const uid = session?.user?.id ?? null;
   const [busy, setBusy] = React.useState(false);
   const [log, setLog] = React.useState<string>("");
   const [lastPublicUrl, setLastPublicUrl] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data } = await supabase.auth.getUser();
-      if (!cancelled) setUid(data.user?.id ?? null);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   function append(msg: string) {
     setLog((prev) => (prev ? prev + "\n" + msg : msg));

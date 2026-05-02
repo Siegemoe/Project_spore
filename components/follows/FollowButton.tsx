@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
 import { useFollowState, useToggleFollow } from "@/features/follows/hooks";
 import { Button } from "@/components/ui/Button";
 
@@ -12,35 +12,16 @@ type Props = {
 };
 
 export default function FollowButton({ followerId, followeeId, initialIsFollowing }: Props) {
-  const [viewerId, setViewerId] = useState<string | undefined>(followerId);
-  
+  const { data: session } = useSession();
+  const viewerId = followerId ?? session?.user?.id;
+
   const { data: isFollowing = false } = useFollowState({
     followerId: viewerId,
     followeeId,
     initialState: initialIsFollowing,
   });
-  
-  const toggleFollow = useToggleFollow();
 
-  // Detect viewer (auth) if not provided
-  useEffect(() => {
-    let cancelled = false;
-    async function loadUser() {
-      if (viewerId) return;
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (!cancelled) {
-          setViewerId(data.user?.id);
-        }
-      } catch {
-        // ignore
-      }
-    }
-    loadUser();
-    return () => {
-      cancelled = true;
-    };
-  }, [viewerId]);
+  const toggleFollow = useToggleFollow();
 
   const disabled = !viewerId || toggleFollow.isPending;
 
@@ -58,7 +39,11 @@ export default function FollowButton({ followerId, followeeId, initialIsFollowin
       size="sm"
       title={!viewerId ? "Sign in to follow" : undefined}
     >
-      {toggleFollow.isPending ? "..." : isFollowing ? "Following" : "Follow"}
+      {toggleFollow.isPending
+        ? "..."
+        : isFollowing
+        ? "Following"
+        : "Follow"}
     </Button>
   );
 }

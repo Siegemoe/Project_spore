@@ -43,6 +43,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             avatarUrl: avatarUrl || undefined,
             name: displayName || undefined,
             image: avatarUrl || undefined,
+            githubHandle: githubLogin || undefined,
           },
         });
 
