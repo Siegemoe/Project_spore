@@ -194,13 +194,16 @@ enum NotificationType {
 // ============================================================================
 
 model User {
-  id          String  @id @default(uuid()) @db.Uuid
-  handle      String? @unique @db.Citext
-  email       String  @unique @db.Citext
-  displayName String? @map("display_name")
-  bio         String?
-  avatarUrl   String? @map("avatar_url")
-  isPublic    Boolean @default(true) @map("is_public")
+  id            String    @id @default(uuid()) @db.Uuid
+  handle        String?   @unique @db.Citext
+  email         String    @unique @db.Citext
+  displayName   String?   @map("display_name")
+  bio           String?
+  avatarUrl     String?   @map("avatar_url")
+  name          String?
+  emailVerified DateTime? @map("email_verified") @db.Timestamptz
+  image         String?
+  isPublic      Boolean   @default(true) @map("is_public")
 
   // Developer Identity
   githubHandle     String? @map("github_handle")
@@ -242,6 +245,10 @@ model User {
 
   // Sessions
   sessions UserSession[]
+
+  // Auth.js
+  authAccounts Account[] @relation("AuthAccount")
+  authSessions Session[] @relation("AuthSession")
 
   // Moderation
   moderationStatus UserModerationStatus?
@@ -847,4 +854,48 @@ model WaitlistSignup {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("waitlist_signups")
+}
+
+// ============================================================================
+// AUTH.JS (NEXTAUTH)
+// ============================================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation("AuthAccount", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime @db.Timestamptz
+
+  user User @relation("AuthSession", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamptz
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
 }
