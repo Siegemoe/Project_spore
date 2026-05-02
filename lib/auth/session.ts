@@ -1,26 +1,22 @@
-import { getServerSupabase } from "@/lib/supabaseServer";
+import { auth } from "@/auth";
 import { UnauthorizedError } from "@/lib/errors";
 
 export type AuthenticatedUser = {
   id: string;
-  email?: string;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
 };
 
 export async function getOptionalUser(): Promise<AuthenticatedUser | null> {
-  const supabase = getServerSupabase();
-  const { data, error } = await supabase.auth.getUser();
-
-  if (error) {
-    // Supabase returns an error when no session cookie exists; treat as unauthenticated.
-    return null;
-  }
-
-  const user = data.user;
-  if (!user) return null;
+  const session = await auth();
+  if (!session?.user?.id) return null;
 
   return {
-    id: user.id,
-    email: user.email ?? undefined,
+    id: session.user.id,
+    email: session.user.email,
+    name: session.user.name,
+    image: session.user.image,
   };
 }
 

@@ -1,69 +1,35 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import type { User } from "@supabase/supabase-js";
+import { useSession } from "next-auth/react";
+
+export type CurrentUser = {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  image?: string | null;
+};
 
 /**
  * Shared hook for getting current authenticated user
- * Replaces duplicate user detection logic across components
+ * Wraps next-auth/react useSession for consistent API across the app
  */
 export function useCurrentUser() {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<Error | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadUser() {
-      try {
-        const response = await supabase.auth.getUser();
-        
-        if (cancelled) return;
-        
-        const data = "data" in response ? response.data : response;
-        const error = "error" in response ? response.error : null;
-        
-        if (error) {
-          setError(error as Error);
-          setUser(null);
-        } else {
-          setUser(data.user);
-          setError(null);
-        }
-      } catch (err) {
-        if (cancelled) return;
-        setError(err as Error);
-        setUser(null);
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+  const { data: session, status } = useSession();
+  const user = session?.user
+    ? {
+        id: session.user.id,
+        email: session.user.email,
+        name: session.user.name,
+        image: session.user.image,
       }
-    }
+    : null;
 
-    loadUser();
-
-    // Listen for auth changes (only if real Supabase client)
-    if ("onAuthStateChange" in supabase.auth) {
-      const { data } = supabase.auth.onAuthStateChange((_event: any, session: any) => {
-        if (cancelled) return;
-        setUser(session?.user ?? null);
-      });
-
-      return () => {
-        cancelled = true;
-        data.subscription.unsubscribe();
-      };
-    }
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  return { user, loading, error, userId: user?.id };
+  return {
+    user,
+    loading: status === "loading",
+    error: null,
+    userId: user?.id,
+  };
 }
 
 /**
@@ -79,15 +45,15 @@ export function useIsAuthenticated() {
  * Returns user or throws error
  */
 export function useRequireAuth() {
-  const { user, loading, error } = useCurrentUser();
-  
+  const { user, loading } = useCurrentUser();
+
   if (loading) {
     return { user: null, loading: true };
   }
-  
+
   if (!user) {
     throw new Error("Authentication required");
   }
-  
+
   return { user, loading: false };
 }

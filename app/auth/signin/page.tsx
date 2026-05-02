@@ -1,43 +1,12 @@
 "use client";
 
-import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
-import { useSearchParams, useRouter } from "next/navigation";
-import { useEffect } from "react";
-import type { Route } from "next";
+import { signIn } from "next-auth/react";
+import { useSearchParams } from "next/navigation";
 
 export default function SignInPage() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-
-  // If already authenticated, bounce to returnTo (or /u/me) immediately
-  useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        if (data?.user) {
-          const rt = searchParams?.get("returnTo") ?? "/u/me";
-          const safePath = rt.startsWith("/") ? rt : `/${rt}`;
-          router.replace(safePath as Route);
-        }
-      } catch {
-        // ignore
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function signInWithGitHub() {
-    const rt = searchParams?.get("returnTo") ?? "/";
-    const safePath = rt.startsWith("/") ? rt : `/${rt}`;
-    const redirectTo = `${location.origin}/auth/callback?returnTo=${encodeURIComponent(safePath)}`;
-
-    await supabase.auth.signInWithOAuth({
-      provider: "github",
-      options: {
-        redirectTo
-      } as any,
-    } as any);
-  }
+  const returnTo = searchParams?.get("returnTo") ?? "/u/me";
+  const safePath = returnTo.startsWith("/") ? returnTo : `/${returnTo}`;
 
   return (
     <section className="container space-y-4">
@@ -46,18 +15,11 @@ export default function SignInPage() {
 
       <button
         type="button"
-        className="btn btn-accent disabled:opacity-60"
-        onClick={signInWithGitHub}
-        disabled={!isSupabaseConfigured}
+        className="btn btn-accent"
+        onClick={() => signIn("github", { callbackUrl: safePath })}
       >
         Continue with GitHub
       </button>
-
-      {!isSupabaseConfigured && (
-        <p className="text-sm text-neutral-600">
-          Supabase env not configured in this environment. OAuth button disabled.
-        </p>
-      )}
     </section>
   );
 }
