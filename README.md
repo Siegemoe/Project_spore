@@ -227,7 +227,7 @@ Next (Phase 2):
 
 ## Phase 1 — M5: GitHub Connect Setup
 
-This project uses Supabase Auth to handle the GitHub OAuth handshake. You do not need to craft GitHub URLs manually — the app calls `supabase.auth.signInWithOAuth({ provider: "github" })` which uses the GitHub Client ID/Secret configured in Supabase.
+This project uses **Auth.js (NextAuth v5)** to handle the GitHub OAuth handshake. You do not need to craft GitHub URLs manually — the app calls `signIn("github")` from `next-auth/react`, which uses the GitHub Client ID/Secret configured in your environment variables.
 
 ### 1) Create/Configure GitHub OAuth App
 
@@ -235,26 +235,30 @@ This project uses Supabase Auth to handle the GitHub OAuth handshake. You do not
 - Create an OAuth App (or edit existing)
   - Authorization callback URL:
     ```
-    https://aehiqptugvakjtlvuixb.supabase.co/auth/v1/callback
+    http://localhost:3000/api/auth/callback/github   (local)
+    https://<your-domain>/api/auth/callback/github   (production)
     ```
 - Copy the “Client ID” and “Client Secret”
 
-> Do NOT commit these to the repo. You will paste them into Supabase Provider settings.
+> Do NOT commit these to the repo. You will paste them into your `.env.local` file.
 
-### 2) Configure Supabase Provider (GitHub)
+### 2) Configure Environment Variables
 
-- Supabase Dashboard → Authentication → Providers → GitHub
-  - Enable GitHub provider
-  - Paste your GitHub OAuth “Client ID” and “Client Secret”
-  - Save
+Add to your .env.local:
 
-### 3) Supabase URL Settings
+`env
+AUTH_GITHUB_ID=your-github-client-id
+AUTH_GITHUB_SECRET=your-github-client-secret
+AUTH_SECRET=your-random-secret-key
+AUTH_URL=http://localhost:3000
+`
 
-- Supabase Dashboard → Authentication → URL Configuration:
-  - Site URL: your deployed app URL (e.g., `https://project-spore.vercel.app`)
-  - Additional redirect URLs: include `http://localhost:3000` for local development
+Generate AUTH_SECRET with:
+`ash
+openssl rand -base64 32
+`
 
-### 4) Vercel Environment
+### 3) Vercel Environment
 
 Set the following in Vercel project environment (Production/Preview/Development as appropriate):
 ```
