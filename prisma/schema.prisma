@@ -1,9 +1,192 @@
 generator client {
-  provider        = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum AdminRole {
+  super_admin
+  moderator
+  analyst
+  support
+
+  @@map("admin_role")
+}
+
+enum MediaType {
+  image
+  video
+
+  @@map("media_type")
+}
+
+enum ContentReportType {
+  post
+  comment
+  profile
+  user
+
+  @@map("content_report_type")
+}
+
+enum ReportReason {
+  spam
+  harassment
+  hate_speech
+  violence
+  sexual_content
+  misinformation
+  copyright
+  impersonation
+  self_harm
+  other
+
+  @@map("report_reason")
+}
+
+enum ReportStatus {
+  pending
+  reviewing
+  resolved
+  dismissed
+  escalated
+
+  @@map("report_status")
+}
+
+enum Severity {
+  low
+  medium
+  high
+  critical
+
+  @@map("severity")
+}
+
+enum ResolutionAction {
+  no_action
+  warning_sent
+  content_removed
+  user_suspended
+  user_banned
+  escalated_to_legal
+
+  @@map("resolution_action")
+}
+
+enum ModerationActionType {
+  content_removed
+  content_restored
+  user_warned
+  user_suspended
+  user_unsuspended
+  user_banned
+  user_unbanned
+  report_dismissed
+  report_escalated
+
+  @@map("moderation_action_type")
+}
+
+enum TargetType {
+  post
+  comment
+  user
+  report
+
+  @@map("target_type")
+}
+
+enum SecurityEventType {
+  failed_login
+  rate_limit_exceeded
+  suspicious_activity
+  csrf_failure
+  invalid_token
+  account_takeover_attempt
+  mass_action_detected
+  geographic_anomaly
+  bot_detected
+  malicious_upload
+  sql_injection_attempt
+  xss_attempt
+
+  @@map("security_event_type")
+}
+
+enum RiskLevel {
+  low
+  medium
+  high
+  critical
+
+  @@map("risk_level")
+}
+
+enum HttpMethod {
+  GET
+  POST
+  PUT
+  PATCH
+  DELETE
+
+  @@map("http_method")
+}
+
+enum HealthComponent {
+  database
+  storage
+  auth
+  api
+  cache
+
+  @@map("health_component")
+}
+
+enum HealthStatus {
+  healthy
+  degraded
+  down
+
+  @@map("health_status")
+}
+
+enum SystemConfigCategory {
+  limits
+  moderation
+  features
+  rate_limits
+
+  @@map("system_config_category")
+}
+
+enum GitProvider {
+  github
+
+  @@map("git_provider")
+}
+
+enum RepoVisibility {
+  public
+  private
+
+  @@map("repo_visibility")
+}
+
+enum NotificationType {
+  follow
+  like
+  comment
+  mention
+
+  @@map("notification_type")
 }
 
 // ============================================================================
@@ -11,12 +194,13 @@ datasource db {
 // ============================================================================
 
 model User {
-  id          String   @id @default(uuid()) // Matches auth.users.id
-  handle      String?  @unique
-  email       String   @unique
-  displayName String?  @map("display_name")
-  bio         String? // Markdown
-  avatarUrl   String?  @map("avatar_url")
+  id          String  @id @default(uuid()) @db.Uuid
+  handle      String? @unique @db.Citext
+  email       String  @unique @db.Citext
+  displayName String? @map("display_name")
+  bio         String?
+  avatarUrl   String? @map("avatar_url")
+  isPublic    Boolean @default(true) @map("is_public")
 
   // Developer Identity
   githubHandle     String? @map("github_handle")
@@ -30,49 +214,70 @@ model User {
   makerScore Int @default(0) @map("maker_score")
 
   // Relations
-  stacks       UserStack[]
-  projects     Project[] // Projects owned
-  posts        Post[]
-  comments     Comment[]
-  likes        Like[]
+  stacks        UserStack[]
+  projects      Project[]
+  posts         Post[]
+  comments      Comment[]
+  likes         Like[]
   notifications Notification[]
-  
+
   // Follows
-  following    Follow[] @relation("follower")
-  followers    Follow[] @relation("followee")
+  following Follow[] @relation("follower")
+  followers Follow[] @relation("followee")
 
   // Kanban
   assignedTasks KanbanTask[] @relation("assignee")
   createdTasks  KanbanTask[] @relation("creator")
 
+  // GitHub
+  gitAccounts GitAccount[]
+  repos       Repo[]
+
   // Admin
-  adminProfile AdminUser?
+  adminProfile Admin?
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Security
+  securityEvents SecurityEvent[]
+  threatScores   ThreatScore[]
 
+  // Sessions
+  sessions UserSession[]
+
+  // Moderation
+  moderationStatus UserModerationStatus?
+  contentReports   ContentReport[]       @relation("reporter")
+
+  // Health
+  apiMetrics ApiMetric[]
+  activeUser ActiveUser?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([createdAt])
+  @@index([displayName])
   @@map("users")
 }
 
 model TechStack {
-  id       String  @id @default(uuid())
-  slug     String  @unique // e.g., "react", "rust"
+  id       String  @id @default(uuid()) @db.Uuid
+  slug     String  @unique
   name     String
-  category String // "language", "framework", "tool", "db"
+  category String // language, framework, tool, db
   iconUrl  String? @map("icon_url")
 
   users UserStack[]
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@map("tech_stacks")
 }
 
 model UserStack {
-  userId      String    @map("user_id")
-  stackId     String    @map("stack_id")
-  proficiency Int       @default(1) // 1=Learning, 2=Intermediate, 3=Expert
-  isPrimary   Boolean   @default(false) @map("is_primary")
+  userId      String  @map("user_id") @db.Uuid
+  stackId     String  @map("stack_id") @db.Uuid
+  proficiency Int     @default(1)
+  isPrimary   Boolean @default(false) @map("is_primary")
 
   user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   stack TechStack @relation(fields: [stackId], references: [id], onDelete: Cascade)
@@ -82,17 +287,49 @@ model UserStack {
 }
 
 model Follow {
-  id          String @id @default(uuid())
-  followerId  String @map("follower_id")
-  followeeId  String @map("followee_id")
+  followerId String  @map("follower_id") @db.Uuid
+  followeeId String  @map("followee_id") @db.Uuid
+  isAccepted Boolean @default(true) @map("is_accepted")
 
   follower User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
   followee User @relation("followee", fields: [followeeId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
-  @@unique([followerId, followeeId])
+  @@id([followerId, followeeId])
+  @@index([followerId, createdAt])
+  @@index([followeeId, createdAt])
   @@map("follows")
+}
+
+model GitAccount {
+  id           String  @id @default(uuid()) @db.Uuid
+  userId       String  @map("user_id") @db.Uuid
+  githubLogin  String? @map("github_login")
+  githubUserId String? @map("github_user_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  connectedAt DateTime @default(now()) @map("connected_at") @db.Timestamptz
+
+  @@index([githubUserId])
+  @@index([githubLogin])
+  @@map("git_accounts")
+}
+
+model Repo {
+  id           String         @id @default(uuid()) @db.Uuid
+  userId       String         @map("user_id") @db.Uuid
+  provider     GitProvider
+  repoFullName String         @map("repo_full_name")
+  visibility   RepoVisibility
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  connectedAt DateTime @default(now()) @map("connected_at") @db.Timestamptz
+
+  @@index([userId])
+  @@map("repos")
 }
 
 // ============================================================================
@@ -100,69 +337,71 @@ model Follow {
 // ============================================================================
 
 model Post {
-  id          String  @id @default(uuid())
-  userId      String  @map("user_id")
-  projectId   String? @map("project_id")
-  
-  // Content
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @map("user_id") @db.Uuid
+  projectId String? @map("project_id") @db.Uuid
+
   caption     String?
-  contentType String  @default("text") @map("content_type") // text, markdown, milestone, article
-  mediaUrl    String? @map("media_url")
-  mediaType   String? @map("media_type") // image, video
-  metadata    String? @default("{}") // SQLite doesn't support JSON type, storing as string
+  contentType String     @default("text") @map("content_type")
+  mediaUrl    String?    @map("media_url")
+  mediaType   MediaType? @map("media_type")
+  metadata    Json?      @default("{}")
 
-  // Relations
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project   Project?  @relation(fields: [projectId], references: [id])
-  comments  Comment[]
-  likes     Like[]
-  tags      PostTag[]
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project  Project?  @relation(fields: [projectId], references: [id])
+  comments Comment[]
+  likes    Like[]
+  tags     PostTag[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  @@index([userId, createdAt])
+  @@index([createdAt])
   @@map("posts")
 }
 
 model Comment {
-  id        String @id @default(uuid())
-  postId    String @map("post_id")
-  userId    String @map("user_id")
-  body      String
+  id     String @id @default(uuid()) @db.Uuid
+  postId String @map("post_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  body   String
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
+  @@index([postId, createdAt])
+  @@index([userId, createdAt])
   @@map("comments")
 }
 
 model Like {
-  postId String @map("post_id")
-  userId String @map("user_id")
+  postId String @map("post_id") @db.Uuid
+  userId String @map("user_id") @db.Uuid
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime @default(now()) @map("created_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
 
   @@id([postId, userId])
   @@map("likes")
 }
 
 model Tag {
-  id    String @id @default(uuid())
-  name  String @unique
+  id    String    @id @default(uuid()) @db.Uuid
+  name  String    @unique
   posts PostTag[]
 
   @@map("tags")
 }
 
 model PostTag {
-  postId String @map("post_id")
-  tagId  String @map("tag_id")
+  postId String @map("post_id") @db.Uuid
+  tagId  String @map("tag_id") @db.Uuid
 
   post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
@@ -171,54 +410,66 @@ model PostTag {
   @@map("post_tags")
 }
 
+model Notification {
+  id      String           @id @default(uuid()) @db.Uuid
+  userId  String           @map("user_id") @db.Uuid
+  type    NotificationType
+  payload Json?            @map("payload_json")
+  readAt  DateTime?        @map("read_at") @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userId, createdAt])
+  @@map("notifications")
+}
+
 // ============================================================================
 // PROJECTS & KANBAN
 // ============================================================================
 
 model Project {
-  id          String  @id @default(uuid())
-  ownerId     String  @map("owner_id")
+  id          String  @id @default(uuid()) @db.Uuid
+  ownerId     String  @map("owner_id") @db.Uuid
   slug        String  @unique
   name        String
   tagline     String?
-  description String? // Markdown
-  
-  // Links
+  description String?
   repoUrl     String? @map("repo_url")
   demoUrl     String? @map("demo_url")
   logoUrl     String? @map("logo_url")
-  
   isPublic    Boolean @default(true) @map("is_public")
 
-  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
-  boards      KanbanBoard[]
-  posts       Post[]
+  owner  User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  boards KanbanBoard[]
+  posts  Post[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("projects")
 }
 
 model KanbanBoard {
-  id        String @id @default(uuid())
-  projectId String @map("project_id")
+  id        String @id @default(uuid()) @db.Uuid
+  projectId String @map("project_id") @db.Uuid
   name      String
 
   project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columns KanbanColumn[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("kanban_boards")
 }
 
 model KanbanColumn {
-  id      String @id @default(uuid())
-  boardId String @map("board_id")
-  title   String
-  status  String // assigned, in_progress, done (mapped to type)
+  id       String @id @default(uuid()) @db.Uuid
+  boardId  String @map("board_id") @db.Uuid
+  title    String
+  status   String
   position Int
 
   board KanbanBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
@@ -228,34 +479,31 @@ model KanbanColumn {
 }
 
 model KanbanTask {
-  id          String  @id @default(uuid())
-  columnId    String  @map("column_id")
-  creatorId   String  @map("creator_id")
-  assigneeId  String? @map("assignee_id")
-  
+  id          String  @id @default(uuid()) @db.Uuid
+  columnId    String  @map("column_id") @db.Uuid
+  creatorId   String  @map("creator_id") @db.Uuid
+  assigneeId  String? @map("assignee_id") @db.Uuid
   title       String
   description String?
   position    Int
-  priority    String  @default("medium") // low, medium, high
+  priority    String  @default("medium")
 
-  column   KanbanColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  creator  User         @relation("creator", fields: [creatorId], references: [id])
-  assignee User?        @relation("assignee", fields: [assigneeId], references: [id])
-  
-  // Task Dependencies
-  blocking    TaskDependency[] @relation("blocker")
-  blockedBy   TaskDependency[] @relation("dependent")
+  column    KanbanColumn     @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  creator   User             @relation("creator", fields: [creatorId], references: [id])
+  assignee  User?            @relation("assignee", fields: [assigneeId], references: [id])
+  blocking  TaskDependency[] @relation("blocker")
+  blockedBy TaskDependency[] @relation("dependent")
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("kanban_tasks")
 }
 
 model TaskDependency {
-  blockerId   String @map("blocker_id")
-  dependentId String @map("dependent_id")
-  type        String @default("blocks") // blocks, relates_to
+  blockerId   String @map("blocker_id") @db.Uuid
+  dependentId String @map("dependent_id") @db.Uuid
+  type        String @default("blocks")
 
   blocker   KanbanTask @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
   dependent KanbanTask @relation("dependent", fields: [dependentId], references: [id], onDelete: Cascade)
@@ -265,45 +513,338 @@ model TaskDependency {
 }
 
 // ============================================================================
-// ADMIN & SECURITY
+// ADMIN & AUDIT
 // ============================================================================
 
-model AdminUser {
-  id        String   @id @default(uuid())
-  userId    String   @unique @map("user_id")
-  role      String   // super_admin, moderator
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now()) @map("created_at")
-  
-  @@map("admin_users")
+model Admin {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @unique @map("user_id") @db.Uuid
+  role      AdminRole
+  grantedBy String?   @map("granted_by") @db.Uuid
+  grantedAt DateTime  @default(now()) @map("granted_at") @db.Timestamptz
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz
+  notes     String?
+
+  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  grantedByAdmin Admin?  @relation("granted_admin", fields: [grantedBy], references: [id], onDelete: SetNull)
+  grantedAdmins  Admin[] @relation("granted_admin")
+
+  auditLogs              AdminAuditLog[]
+  contentReportsReviewed ContentReport[]        @relation("reviewed_by")
+  moderationActions      ModerationAction[]
+  securityEventsResolved SecurityEvent[]        @relation("resolved_by")
+  ipBlocks               IpBlocklist[]          @relation("blocked_by")
+  userSuspensions        UserModerationStatus[] @relation("suspended_by")
+  userBans               UserModerationStatus[] @relation("banned_by")
+  systemConfigs          SystemConfig[]         @relation("updated_by")
+
+  @@index([userId])
+  @@index([role])
+  @@index([grantedBy])
+  @@map("admins")
 }
 
-model AuditLog {
-  id           String   @id @default(uuid())
-  adminId      String   @map("admin_id")
+model AdminAuditLog {
+  id           String  @id @default(uuid()) @db.Uuid
+  adminId      String  @map("admin_id") @db.Uuid
   action       String
-  resourceType String   @map("resource_type")
-  resourceId   String?  @map("resource_id")
-  details      String?  @default("{}") // SQLite JSON fallback
-  ipAddress    String?  @map("ip_address")
-  
-  createdAt    DateTime @default(now()) @map("created_at")
-  
-  @@map("audit_logs")
+  resourceType String  @map("resource_type")
+  resourceId   String? @map("resource_id")
+  details      Json?
+  ipAddress    String? @map("ip_address")
+  userAgent    String? @map("user_agent")
+
+  admin Admin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([adminId, createdAt])
+  @@index([resourceType, resourceId])
+  @@index([action, createdAt])
+  @@index([createdAt])
+  @@map("admin_audit_log")
 }
 
-model Notification {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
-  type      String   // follow, like, comment, mention
-  content   String?  @default("{}") // SQLite JSON fallback
-  isRead    Boolean  @default(false) @map("is_read")
-  
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  createdAt DateTime @default(now()) @map("created_at")
-  
-  @@map("notifications")
+// ============================================================================
+// MODERATION
+// ============================================================================
+
+model ContentReport {
+  id               String            @id @default(uuid()) @db.Uuid
+  reporterId       String            @map("reporter_id") @db.Uuid
+  contentType      ContentReportType @map("content_type")
+  contentId        String            @map("content_id") @db.Uuid
+  reason           ReportReason
+  details          String?
+  status           ReportStatus      @default(pending)
+  severity         Severity?
+  reviewedBy       String?           @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?         @map("reviewed_at") @db.Timestamptz
+  resolution       String?
+  resolutionAction ResolutionAction? @map("resolution_action")
+
+  reporter User               @relation("reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  reviewer Admin?             @relation("reviewed_by", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  actions  ModerationAction[]
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
+
+  @@index([status, createdAt])
+  @@index([contentType, contentId])
+  @@index([reporterId])
+  @@index([reviewedBy])
+  @@index([severity, status, createdAt])
+  @@map("content_reports")
+}
+
+model ModerationAction {
+  id           String               @id @default(uuid()) @db.Uuid
+  adminId      String               @map("admin_id") @db.Uuid
+  actionType   ModerationActionType @map("action_type")
+  targetType   TargetType           @map("target_type")
+  targetId     String               @map("target_id") @db.Uuid
+  reason       String
+  durationDays Int?                 @map("duration_days")
+  notes        String?
+  reportId     String?              @map("report_id") @db.Uuid
+
+  admin  Admin          @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  report ContentReport? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([actionType, createdAt])
+  @@index([reportId])
+  @@map("moderation_actions")
+}
+
+model UserModerationStatus {
+  userId           String    @id @map("user_id") @db.Uuid
+  warningCount     Int       @default(0) @map("warning_count")
+  isSuspended      Boolean   @default(false) @map("is_suspended")
+  suspensionEndsAt DateTime? @map("suspension_ends_at") @db.Timestamptz
+  suspendedBy      String?   @map("suspended_by") @db.Uuid
+  suspendedAt      DateTime? @map("suspended_at") @db.Timestamptz
+  suspensionReason String?   @map("suspension_reason")
+  isBanned         Boolean   @default(false) @map("is_banned")
+  bannedBy         String?   @map("banned_by") @db.Uuid
+  bannedAt         DateTime? @map("banned_at") @db.Timestamptz
+  banReason        String?   @map("ban_reason")
+  lastWarningAt    DateTime? @map("last_warning_at") @db.Timestamptz
+  notes            String?
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz
+
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  suspendedByAdmin Admin? @relation("suspended_by", fields: [suspendedBy], references: [id], onDelete: SetNull)
+  bannedByAdmin    Admin? @relation("banned_by", fields: [bannedBy], references: [id], onDelete: SetNull)
+
+  @@index([isSuspended, suspensionEndsAt])
+  @@index([isBanned])
+  @@map("user_moderation_status")
+}
+
+// ============================================================================
+// SECURITY
+// ============================================================================
+
+model SecurityEvent {
+  id              String            @id @default(uuid()) @db.Uuid
+  eventType       SecurityEventType @map("event_type")
+  severity        Severity
+  userId          String?           @map("user_id") @db.Uuid
+  ipAddress       String?           @map("ip_address")
+  userAgent       String?           @map("user_agent")
+  details         Json?
+  resolved        Boolean           @default(false)
+  resolvedBy      String?           @map("resolved_by") @db.Uuid
+  resolvedAt      DateTime?         @map("resolved_at") @db.Timestamptz
+  resolutionNotes String?           @map("resolution_notes")
+
+  user     User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+  resolver Admin? @relation("resolved_by", fields: [resolvedBy], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([eventType, createdAt])
+  @@index([severity, createdAt])
+  @@index([userId, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([resolved, severity, createdAt])
+  @@index([createdAt])
+  @@map("security_events")
+}
+
+model IpBlocklist {
+  id        String    @id @default(uuid()) @db.Uuid
+  ipAddress String    @unique @map("ip_address")
+  reason    String
+  blockedBy String?   @map("blocked_by") @db.Uuid
+  blockedAt DateTime  @default(now()) @map("blocked_at") @db.Timestamptz
+  expiresAt DateTime? @map("expires_at") @db.Timestamptz
+  notes     String?
+  active    Boolean   @default(true)
+
+  admin Admin? @relation("blocked_by", fields: [blockedBy], references: [id], onDelete: SetNull)
+
+  @@index([ipAddress])
+  @@index([active, blockedAt])
+  @@index([expiresAt])
+  @@map("ip_blocklist")
+}
+
+model ThreatScore {
+  id          String    @id @default(uuid()) @db.Uuid
+  entityType  String    @map("entity_type")
+  entityId    String    @map("entity_id")
+  score       Int
+  riskLevel   RiskLevel @map("risk_level")
+  factors     Json?
+  lastUpdated DateTime  @default(now()) @map("last_updated") @db.Timestamptz
+  user        User?     @relation(fields: [userId], references: [id])
+  userId      String?   @db.Uuid
+
+  @@unique([entityType, entityId])
+  @@index([entityType, entityId])
+  @@index([riskLevel, score])
+  @@index([lastUpdated])
+  @@map("threat_scores")
+}
+
+// ============================================================================
+// HEALTH & METRICS
+// ============================================================================
+
+model ApiMetric {
+  id             String     @id @default(uuid()) @db.Uuid
+  endpoint       String
+  method         HttpMethod
+  statusCode     Int        @map("status_code")
+  responseTimeMs Int        @map("response_time_ms")
+  userId         String?    @map("user_id") @db.Uuid
+  errorMessage   String?    @map("error_message")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([endpoint, createdAt])
+  @@index([statusCode, createdAt])
+  @@index([createdAt])
+  @@index([errorMessage])
+  @@map("api_metrics")
+}
+
+model SystemHealth {
+  id             String          @id @default(uuid()) @db.Uuid
+  component      HealthComponent
+  status         HealthStatus
+  responseTimeMs Int?            @map("response_time_ms")
+  errorMessage   String?         @map("error_message")
+  details        Json?
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([component, createdAt])
+  @@index([status, createdAt])
+  @@index([createdAt])
+  @@map("system_health")
+}
+
+model ActiveUser {
+  userId    String   @id @map("user_id") @db.Uuid
+  lastSeen  DateTime @default(now()) @map("last_seen") @db.Timestamptz
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([lastSeen])
+  @@map("active_users")
+}
+
+// ============================================================================
+// SESSION MANAGEMENT
+// ============================================================================
+
+model UserSession {
+  id                String   @id @default(uuid()) @db.Uuid
+  userId            String   @map("user_id") @db.Uuid
+  sessionToken      String   @unique @map("session_token")
+  deviceFingerprint String?  @map("device_fingerprint")
+  ipAddress         String?  @map("ip_address")
+  userAgent         String?  @map("user_agent")
+  lastActive        DateTime @default(now()) @map("last_active") @db.Timestamptz
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  expiresAt         DateTime @map("expires_at") @db.Timestamptz
+  revoked           Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revoked])
+  @@index([sessionToken, revoked])
+  @@index([expiresAt, revoked])
+  @@index([lastActive])
+  @@map("user_sessions")
+}
+
+model LoginAttempt {
+  id           String  @id @default(uuid()) @db.Uuid
+  userEmail    String  @map("user_email")
+  ipAddress    String  @map("ip_address")
+  success      Boolean
+  failedReason String? @map("failed_reason")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@index([userEmail, createdAt])
+  @@index([ipAddress, createdAt])
+  @@index([success, createdAt])
+  @@index([createdAt])
+  @@map("login_attempts")
+}
+
+model AccountLock {
+  userEmail      String   @id @map("user_email")
+  lockedUntil    DateTime @map("locked_until") @db.Timestamptz
+  failedAttempts Int      @default(0) @map("failed_attempts")
+  lastAttempt    DateTime @default(now()) @map("last_attempt") @db.Timestamptz
+
+  @@index([lockedUntil])
+  @@map("account_locks")
+}
+
+// ============================================================================
+// SYSTEM CONFIG
+// ============================================================================
+
+model SystemConfig {
+  key         String               @id
+  value       Json
+  description String?
+  category    SystemConfigCategory
+  updatedBy   String?              @map("updated_by") @db.Uuid
+  updatedAt   DateTime             @default(now()) @map("updated_at") @db.Timestamptz
+
+  admin Admin? @relation("updated_by", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@map("system_config")
+}
+
+// ============================================================================
+// WAITLIST
+// ============================================================================
+
+model WaitlistSignup {
+  id              String  @id @default(uuid()) @db.Uuid
+  email           String  @unique @db.Citext
+  handle          String? @unique @db.Citext
+  publishInterest Boolean @default(false) @map("publish_interest")
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  @@map("waitlist_signups")
 }
