@@ -51,9 +51,9 @@ export function Loading({
       return (
         <div className="card p-6 animate-pulse">
           <div className="space-y-3">
-            <div className="h-4 bg-[rgb(var(--surface-muted))] rounded w-3/4"></div>
-            <div className="h-4 bg-[rgb(var(--surface-muted))] rounded w-1/2"></div>
-            <div className="h-4 bg-[rgb(var(--surface-muted))] rounded w-5/6"></div>
+            <div className="h-4 skeleton-base rounded w-3/4"></div>
+            <div className="h-4 skeleton-base rounded w-1/2"></div>
+            <div className="h-4 skeleton-base rounded w-5/6"></div>
           </div>
         </div>
       );
@@ -82,7 +82,7 @@ export function Loading({
           {Array.from({ length: rows }).map((_, i) => (
             <div key={i} className="flex gap-4">
               {Array.from({ length: cols }).map((_, j) => (
-                <div key={j} className="h-8 bg-[rgb(var(--surface-muted))] rounded flex-1"></div>
+                <div key={j} className="h-8 skeleton-base rounded flex-1"></div>
               ))}
             </div>
           ))}

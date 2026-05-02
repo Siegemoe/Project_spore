@@ -11,19 +11,19 @@ export type CacheStrategy = "static" | "dynamic" | "api" | "user" | "feed" | "no
 const CACHE_CONFIGS: Record<CacheStrategy, string> = {
   // Static assets (images, CSS, JS) - cache for 1 year
   static: "public, max-age=31536000, immutable",
-  
+
   // Dynamic but cacheable (public pages) - cache for 60 seconds, stale-while-revalidate for 5 minutes
   dynamic: "public, max-age=60, stale-while-revalidate=300",
-  
-  // API responses - cache for 30 seconds
-  api: "public, max-age=30, stale-while-revalidate=60",
-  
+
+  // API responses — never cache at shared caches; private only
+  api: "private, no-cache, no-store, must-revalidate",
+
   // User-specific content - private cache for 5 minutes
   user: "private, max-age=300, must-revalidate",
-  
-  // Feed content - cache for 15 seconds with stale-while-revalidate
-  feed: "public, max-age=15, stale-while-revalidate=60",
-  
+
+  // Feed content — private because feed is personalized
+  feed: "private, no-cache, no-store, must-revalidate",
+
   // No cache - always fresh
   "no-cache": "no-store, no-cache, must-revalidate, max-age=0",
 };
@@ -38,7 +38,10 @@ export function getCacheHeader(strategy: CacheStrategy): string {
 /**
  * Create headers object with cache control
  */
-export function getCacheHeaders(strategy: CacheStrategy, additionalHeaders?: Record<string, string>): Record<string, string> {
+export function getCacheHeaders(
+  strategy: CacheStrategy,
+  additionalHeaders?: Record<string, string>
+): Record<string, string> {
   return {
     "Cache-Control": getCacheHeader(strategy),
     "CDN-Cache-Control": getCacheHeader(strategy), // For Vercel CDN
@@ -53,7 +56,7 @@ export function addCacheHeaders(response: Response, strategy: CacheStrategy): Re
   const headers = new Headers(response.headers);
   headers.set("Cache-Control", getCacheHeader(strategy));
   headers.set("CDN-Cache-Control", getCacheHeader(strategy));
-  
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -69,21 +72,21 @@ export const ROUTE_CACHE_CONFIG = {
   "/": "feed" as CacheStrategy,
   "/test": "feed" as CacheStrategy,
   "/promo": "static" as CacheStrategy,
-  
+
   // User profiles (public but personalized)
   "/u/[handle]": "dynamic" as CacheStrategy,
-  
+
   // Posts (public)
   "/p/[id]": "dynamic" as CacheStrategy,
-  
+
   // API routes
   "/api/feed": "api" as CacheStrategy,
   "/api/comments": "api" as CacheStrategy,
-  
+
   // User-specific (private)
   "/settings": "no-cache" as CacheStrategy,
   "/notifications": "user" as CacheStrategy,
-  
+
   // Admin (never cache)
   "/admin": "no-cache" as CacheStrategy,
 } as const;
@@ -96,14 +99,14 @@ export function getCacheStrategyForRoute(pathname: string): CacheStrategy {
   if (pathname in ROUTE_CACHE_CONFIG) {
     return ROUTE_CACHE_CONFIG[pathname as keyof typeof ROUTE_CACHE_CONFIG];
   }
-  
+
   // Check patterns
   if (pathname.startsWith("/admin")) return "no-cache";
   if (pathname.startsWith("/api")) return "api";
   if (pathname.startsWith("/u/")) return "dynamic";
   if (pathname.startsWith("/p/")) return "dynamic";
   if (pathname.startsWith("/settings")) return "no-cache";
-  
+
   // Default to dynamic
   return "dynamic";
 }
@@ -128,7 +131,7 @@ export const CACHE_TAGS = {
 export function addCacheTags(response: Response, tags: string[]): Response {
   const headers = new Headers(response.headers);
   headers.set("Cache-Tag", tags.join(","));
-  
+
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -145,21 +148,10 @@ export const CDN_CONFIG = {
     cacheControl: CACHE_CONFIGS.static,
     regions: ["iad1"], // Expand to more regions as needed
   },
-  
-  // Supabase Storage CDN
-  media: {
-    domain: "aehiqptugvakjtlvuixb.supabase.co",
-    cacheControl: "public, max-age=31536000", // 1 year
-    transforms: {
-      enabled: true,
-      quality: 85,
-      format: "webp", // Auto-convert to WebP
-    },
-  },
-  
+
   // API responses
   api: {
     cacheControl: CACHE_CONFIGS.api,
-    staleWhileRevalidate: 60,
+    staleWhileRevalidate: 0,
   },
 } as const;

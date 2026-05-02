@@ -33,3 +33,6 @@ lerna-debug.log*
 # TypeScript
 *.tsbuildinfo
 MIGRATIONS.md
+
+# Cleanup archive
+.archive/

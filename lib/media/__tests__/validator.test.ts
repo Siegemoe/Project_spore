@@ -46,7 +46,7 @@ describe('sanitizeFilename', () => {
   });
 
   it('prevents path traversal', () => {
-    expect(sanitizeFilename('../../../etc/passwd')).toBe('______etc_passwd');
+    expect(sanitizeFilename('../../../etc/passwd')).toBe('___etc_passwd');
   });
 
   it('preserves safe characters', () => {

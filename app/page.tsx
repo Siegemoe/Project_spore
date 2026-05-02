@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import { QueryClient, dehydrate } from "@tanstack/react-query";
 import { Hydrate } from "@/components/providers/QueryProvider";
 import FeedClient from "@/components/posts/FeedClient";
+import { FeedErrorBoundary } from "@/components/shared/FeedErrorBoundary";
 import { listFeed } from "@/features/posts/actions";
 import { feedQueryKey, FeedResponse } from "@/features/posts/hooks";
 import { getOptionalUser } from "@/lib/auth/session";
@@ -40,13 +41,15 @@ export default async function HomeFeedPage() {
 
   return (
     <Hydrate state={dehydratedState}>
-      <div className="container py-6 space-y-4">
-        <FeedClient 
-          initialPage={initialPage} 
-          initialCursor={initialCursor} 
-          viewerId={viewerId} 
-        />
-      </div>
+      <FeedErrorBoundary>
+        <div className="container py-6 space-y-4">
+          <FeedClient 
+            initialPage={initialPage} 
+            initialCursor={initialCursor} 
+            viewerId={viewerId} 
+          />
+        </div>
+      </FeedErrorBoundary>
     </Hydrate>
   );
 }

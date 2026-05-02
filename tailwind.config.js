@@ -15,7 +15,8 @@ module.exports = {
         },
         surface: {
           DEFAULT: "rgb(var(--surface) / <alpha-value>)",
-          muted: "rgb(var(--surface-muted) / <alpha-value>)"
+          muted: "rgb(var(--surface-muted) / <alpha-value>)",
+          primary: "rgb(var(--surface-primary) / <alpha-value>)"
         },
         text: {
           primary: "rgb(var(--text-primary) / <alpha-value>)",
@@ -40,6 +41,16 @@ module.exports = {
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui", "Arial"]
+      },
+      zIndex: {
+        'dropdown': 'var(--z-dropdown)',
+        'sticky': 'var(--z-sticky)',
+        'fixed': 'var(--z-fixed)',
+        'modal-backdrop': 'var(--z-modal-backdrop)',
+        'modal': 'var(--z-modal)',
+        'popover': 'var(--z-popover)',
+        'tooltip': 'var(--z-tooltip)',
+        'toast': 'var(--z-toast)'
       }
     }
   },

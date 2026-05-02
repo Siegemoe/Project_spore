@@ -3,7 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import Image from "next/image";
-import Hero from "../../Cline_Info/image.png";
+const Hero = "/hero.png";
 import { useState } from "react";
 
 /**
@@ -103,6 +103,7 @@ export default function PromoPage() {
       <section className="relative aspect-[1/1] w-full">
         <Image
           src={Hero}
+          unoptimized
           alt="Spore mascot"
           fill
           sizes="(max-width: 768px) 100vw, 50vw"

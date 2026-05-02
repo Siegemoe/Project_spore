@@ -6,6 +6,7 @@ import { AppChrome } from "@/components/nav/AppChrome";
 import { NEW_MOBILE_UI } from "@/lib/config";
 import { AuthProvider } from "@/components/auth/AuthProvider";
 import { QueryProvider } from "@/components/providers/QueryProvider";
+import SkipLink from "@/components/shared/SkipLink";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -18,10 +19,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.className}>
       <body>
+        <SkipLink />
         <AuthProvider>
           <QueryProvider>
             {NEW_MOBILE_UI ? (
-              <AppChrome>{children}</AppChrome>
+              <AppChrome>
+                <main id="main-content">{children}</main>
+              </AppChrome>
             ) : (
               <>
                 <header className="nav container">
@@ -38,7 +42,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     </Link>
                   </nav>
                 </header>
-                <main className="container py-10">{children}</main>
+                <main id="main-content" className="container py-10">{children}</main>
                 <footer className="container py-10 text-sm text-neutral-500">
                   <p>© {new Date().getFullYear()} Spore • Apache-2.0</p>
                 </footer>

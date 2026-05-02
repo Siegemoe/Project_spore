@@ -1,56 +1,73 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  
+
   // Image optimization
   images: {
-    // Supabase storage CDN for Project_Spore (us-east-1)
-    domains: ["aehiqptugvakjtlvuixb.supabase.co"],
-    formats: ['image/webp', 'image/avif'],
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "*.supabase.co",
+      },
+    ],
+    formats: ["image/webp", "image/avif"],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
     minimumCacheTTL: 31536000, // 1 year
   },
-  
+
   // Enable experimental features
   experimental: {
     typedRoutes: true,
   },
-  
+
   // Headers for caching and security
   async headers() {
     return [
       {
-        // Apply to static assets
-        source: '/:path*.{jpg,jpeg,png,gif,webp,svg,ico,woff,woff2}',
+        // Apply to all routes — baseline security headers
+        source: "/:path*",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=31536000, immutable',
+            key: "X-Frame-Options",
+            value: "DENY",
+          },
+          {
+            key: "X-Content-Type-Options",
+            value: "nosniff",
+          },
+          {
+            key: "Referrer-Policy",
+            value: "strict-origin-when-cross-origin",
           },
         ],
       },
       {
-        // Apply to API routes
-        source: '/api/:path*',
+        // Apply to static assets
+        source: "/:path*.{jpg,jpeg,png,gif,webp,svg,ico,woff,woff2}",
         headers: [
           {
-            key: 'Cache-Control',
-            value: 'public, max-age=30, stale-while-revalidate=60',
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        // Apply to API routes — never cache authenticated responses
+        source: "/api/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "private, no-cache, no-store, must-revalidate",
+          },
+          {
+            key: "Vary",
+            value: "Authorization, Cookie",
           },
         ],
       },
     ];
   },
-  
-  // Exclude legacy supabase template directory from build
-  webpack: (config) => {
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: ['**/supabase/**']
-    };
-    return config;
-  }
 };
 
 module.exports = nextConfig;

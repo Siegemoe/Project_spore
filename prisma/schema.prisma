@@ -1,0 +1,309 @@
+generator client {
+  provider        = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ============================================================================
+// IDENTITY & PROFILE
+// ============================================================================
+
+model User {
+  id          String   @id @default(uuid()) // Matches auth.users.id
+  handle      String?  @unique
+  email       String   @unique
+  displayName String?  @map("display_name")
+  bio         String? // Markdown
+  avatarUrl   String?  @map("avatar_url")
+
+  // Developer Identity
+  githubHandle     String? @map("github_handle")
+  twitterHandle    String? @map("twitter_handle")
+  linkedinHandle   String? @map("linkedin_handle")
+  websiteUrl       String? @map("website_url")
+  location         String?
+  availableForHire Boolean @default(false) @map("available_for_hire")
+
+  // Gamification
+  makerScore Int @default(0) @map("maker_score")
+
+  // Relations
+  stacks       UserStack[]
+  projects     Project[] // Projects owned
+  posts        Post[]
+  comments     Comment[]
+  likes        Like[]
+  notifications Notification[]
+  
+  // Follows
+  following    Follow[] @relation("follower")
+  followers    Follow[] @relation("followee")
+
+  // Kanban
+  assignedTasks KanbanTask[] @relation("assignee")
+  createdTasks  KanbanTask[] @relation("creator")
+
+  // Admin
+  adminProfile AdminUser?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model TechStack {
+  id       String  @id @default(uuid())
+  slug     String  @unique // e.g., "react", "rust"
+  name     String
+  category String // "language", "framework", "tool", "db"
+  iconUrl  String? @map("icon_url")
+
+  users UserStack[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("tech_stacks")
+}
+
+model UserStack {
+  userId      String    @map("user_id")
+  stackId     String    @map("stack_id")
+  proficiency Int       @default(1) // 1=Learning, 2=Intermediate, 3=Expert
+  isPrimary   Boolean   @default(false) @map("is_primary")
+
+  user  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stack TechStack @relation(fields: [stackId], references: [id], onDelete: Cascade)
+
+  @@id([userId, stackId])
+  @@map("user_stacks")
+}
+
+model Follow {
+  id          String @id @default(uuid())
+  followerId  String @map("follower_id")
+  followeeId  String @map("followee_id")
+
+  follower User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  followee User @relation("followee", fields: [followeeId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([followerId, followeeId])
+  @@map("follows")
+}
+
+// ============================================================================
+// CONTENT & SOCIAL
+// ============================================================================
+
+model Post {
+  id          String  @id @default(uuid())
+  userId      String  @map("user_id")
+  projectId   String? @map("project_id")
+  
+  // Content
+  caption     String?
+  contentType String  @default("text") @map("content_type") // text, markdown, milestone, article
+  mediaUrl    String? @map("media_url")
+  mediaType   String? @map("media_type") // image, video
+  metadata    String? @default("{}") // SQLite doesn't support JSON type, storing as string
+
+  // Relations
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project?  @relation(fields: [projectId], references: [id])
+  comments  Comment[]
+  likes     Like[]
+  tags      PostTag[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("posts")
+}
+
+model Comment {
+  id        String @id @default(uuid())
+  postId    String @map("post_id")
+  userId    String @map("user_id")
+  body      String
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("comments")
+}
+
+model Like {
+  postId String @map("post_id")
+  userId String @map("user_id")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([postId, userId])
+  @@map("likes")
+}
+
+model Tag {
+  id    String @id @default(uuid())
+  name  String @unique
+  posts PostTag[]
+
+  @@map("tags")
+}
+
+model PostTag {
+  postId String @map("post_id")
+  tagId  String @map("tag_id")
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([postId, tagId])
+  @@map("post_tags")
+}
+
+// ============================================================================
+// PROJECTS & KANBAN
+// ============================================================================
+
+model Project {
+  id          String  @id @default(uuid())
+  ownerId     String  @map("owner_id")
+  slug        String  @unique
+  name        String
+  tagline     String?
+  description String? // Markdown
+  
+  // Links
+  repoUrl     String? @map("repo_url")
+  demoUrl     String? @map("demo_url")
+  logoUrl     String? @map("logo_url")
+  
+  isPublic    Boolean @default(true) @map("is_public")
+
+  owner       User          @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  boards      KanbanBoard[]
+  posts       Post[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("projects")
+}
+
+model KanbanBoard {
+  id        String @id @default(uuid())
+  projectId String @map("project_id")
+  name      String
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columns KanbanColumn[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("kanban_boards")
+}
+
+model KanbanColumn {
+  id      String @id @default(uuid())
+  boardId String @map("board_id")
+  title   String
+  status  String // assigned, in_progress, done (mapped to type)
+  position Int
+
+  board KanbanBoard  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks KanbanTask[]
+
+  @@map("kanban_columns")
+}
+
+model KanbanTask {
+  id          String  @id @default(uuid())
+  columnId    String  @map("column_id")
+  creatorId   String  @map("creator_id")
+  assigneeId  String? @map("assignee_id")
+  
+  title       String
+  description String?
+  position    Int
+  priority    String  @default("medium") // low, medium, high
+
+  column   KanbanColumn @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  creator  User         @relation("creator", fields: [creatorId], references: [id])
+  assignee User?        @relation("assignee", fields: [assigneeId], references: [id])
+  
+  // Task Dependencies
+  blocking    TaskDependency[] @relation("blocker")
+  blockedBy   TaskDependency[] @relation("dependent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("kanban_tasks")
+}
+
+model TaskDependency {
+  blockerId   String @map("blocker_id")
+  dependentId String @map("dependent_id")
+  type        String @default("blocks") // blocks, relates_to
+
+  blocker   KanbanTask @relation("blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  dependent KanbanTask @relation("dependent", fields: [dependentId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, dependentId])
+  @@map("task_dependencies")
+}
+
+// ============================================================================
+// ADMIN & SECURITY
+// ============================================================================
+
+model AdminUser {
+  id        String   @id @default(uuid())
+  userId    String   @unique @map("user_id")
+  role      String   // super_admin, moderator
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@map("admin_users")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  adminId      String   @map("admin_id")
+  action       String
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  details      String?  @default("{}") // SQLite JSON fallback
+  ipAddress    String?  @map("ip_address")
+  
+  createdAt    DateTime @default(now()) @map("created_at")
+  
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  type      String   // follow, like, comment, mention
+  content   String?  @default("{}") // SQLite JSON fallback
+  isRead    Boolean  @default(false) @map("is_read")
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  @@map("notifications")
+}

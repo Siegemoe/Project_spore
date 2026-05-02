@@ -1,15 +1,24 @@
 // Learn more: https://github.com/testing-library/jest-dom
-import '@testing-library/jest-dom'
+import "@testing-library/jest-dom";
+
+// Polyfill TextEncoder/TextDecoder for jsdom (used by media validator tests)
+import { TextEncoder, TextDecoder } from "util";
+if (typeof globalThis.TextEncoder === "undefined") {
+  globalThis.TextEncoder = TextEncoder;
+}
+if (typeof globalThis.TextDecoder === "undefined") {
+  globalThis.TextDecoder = TextDecoder;
+}
 
 // Mock Supabase client for tests
-jest.mock('@/lib/supabaseClient', () => ({
+jest.mock("@/lib/supabaseClient", () => ({
   supabase: {
     auth: {
       getUser: jest.fn(),
       getSession: jest.fn(),
       signInWithOAuth: jest.fn(),
       onAuthStateChange: jest.fn(() => ({
-        data: { subscription: { unsubscribe: jest.fn() } }
+        data: { subscription: { unsubscribe: jest.fn() } },
       })),
     },
     from: jest.fn(() => ({
@@ -31,7 +40,7 @@ jest.mock('@/lib/supabaseClient', () => ({
 }));
 
 // Mock Next.js navigation
-jest.mock('next/navigation', () => ({
+jest.mock("next/navigation", () => ({
   useRouter: () => ({
     push: jest.fn(),
     replace: jest.fn(),
@@ -39,14 +48,14 @@ jest.mock('next/navigation', () => ({
     back: jest.fn(),
   }),
   useSearchParams: () => new URLSearchParams(),
-  usePathname: () => '/',
+  usePathname: () => "/",
 }));
 
 // Suppress console errors/warnings in tests using jest.spyOn
 // Tests can restore or override these mocks as needed
 beforeEach(() => {
-  jest.spyOn(console, 'error').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
 });
 
 afterEach(() => {

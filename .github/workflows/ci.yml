@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [ "staging", "main" ]
+    branches: ["staging", "main"]
   push:
-    branches: [ "staging" ]
+    branches: ["staging"]
 
 jobs:
   build-and-verify:
@@ -17,7 +17,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
           cache: "npm"
 
       - name: Install
@@ -28,6 +28,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build

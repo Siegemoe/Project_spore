@@ -2,6 +2,7 @@
 
 import React from "react";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
+import { KanbanErrorBoundary } from "@/components/shared/KanbanErrorBoundary";
 import { KanbanBoard as KanbanBoardType, KanbanTask, User } from "@/types";
 
 // Mock data for demonstration
@@ -187,11 +188,13 @@ export default function KanbanDemoPage() {
           </p>
         </div>
 
-        <KanbanBoard
-          board={mockBoard}
-          onTaskUpdate={mockApi.updateTask}
-          onTaskCreate={mockApi.createTask}
-        />
+        <KanbanErrorBoundary>
+          <KanbanBoard
+            board={mockBoard}
+            onTaskUpdate={mockApi.updateTask}
+            onTaskCreate={mockApi.createTask}
+          />
+        </KanbanErrorBoundary>
 
         <div className="mt-8 p-6 bg-[rgb(var(--surface-muted))] rounded-xl">
           <h2 className="text-xl font-semibold text-text-primary mb-4">

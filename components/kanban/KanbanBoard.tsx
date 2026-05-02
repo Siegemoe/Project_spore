@@ -71,35 +71,48 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     setColumns(newColumns);
   }, [board.columns, defaultColumns]);
 
-  const handleTaskMove = (moveOperation: any) => {
+  const handleTaskMove = async (moveOperation: {
+    task: KanbanTask;
+    from: { column: string; index: number };
+    to: { column: string; index: number };
+  }) => {
     const { task, from, to } = moveOperation;
     
-    // Update task status and position
-    onTaskUpdate(task.id, {
-      status: to.column,
-      position: to.index,
-    });
+    // Store previous state for rollback
+    const previousColumns = [...columns];
+    
+    try {
+      // Optimistically update UI first
+      setColumns(prevColumns => {
+        const newColumns = [...prevColumns];
+        
+        // Remove task from source column
+        const sourceColumn = newColumns.find(col => col.id === from.column);
+        if (sourceColumn) {
+          sourceColumn.tasks = sourceColumn.tasks.filter(t => t.id !== task.id);
+        }
+        
+        // Add task to target column
+        const targetColumn = newColumns.find(col => col.id === to.column);
+        if (targetColumn) {
+          const targetTasks = [...targetColumn.tasks];
+          targetTasks.splice(to.index, 0, task);
+          targetColumn.tasks = targetTasks;
+        }
+        
+        return newColumns;
+      });
 
-    // Optimistically update UI
-    setColumns(prevColumns => {
-      const newColumns = [...prevColumns];
-      
-      // Remove task from source column
-      const sourceColumn = newColumns.find(col => col.id === from.column);
-      if (sourceColumn) {
-        sourceColumn.tasks = sourceColumn.tasks.filter(t => t.id !== task.id);
-      }
-      
-      // Add task to target column
-      const targetColumn = newColumns.find(col => col.id === to.column);
-      if (targetColumn) {
-        const targetTasks = [...targetColumn.tasks];
-        targetTasks.splice(to.index, 0, task);
-        targetColumn.tasks = targetTasks;
-      }
-      
-      return newColumns;
-    });
+      // Update task status and position
+      await onTaskUpdate(task.id, {
+        status: to.column as KanbanColumnStatus,
+        position: to.index,
+      });
+    } catch (error) {
+      // Rollback on error
+      setColumns(previousColumns);
+      console.error('Failed to move task:', error);
+    }
   };
 
   const handleTaskClick = (task: KanbanTask) => {
