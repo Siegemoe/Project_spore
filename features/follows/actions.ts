@@ -39,3 +39,12 @@ export async function toggleFollow(input: z.infer<typeof FollowToggle>) {
 
   return { isFollowing: true };
 }
+
+export async function checkFollowState(followerId: string, followeeId: string) {
+  const existing = await prisma.follow.findUnique({
+    where: {
+      followerId_followeeId: { followerId, followeeId },
+    },
+  });
+  return !!existing;
+}

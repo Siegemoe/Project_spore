@@ -1,6 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toggleFollow } from "./actions";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { toggleFollow, checkFollowState } from "./actions";
 
 export const followStateQueryKey = (followerId: string, followeeId: string) =>
   ["followState", followerId, followeeId] as const;
@@ -19,17 +18,7 @@ export function useFollowState({ followerId, followeeId, initialState }: UseFoll
     queryKey: followStateQueryKey(followerId ?? "anon", followeeId),
     queryFn: async () => {
       if (!followerId) return false;
-      
-      const admin = getSupabaseAdmin();
-      const { data, error } = await admin
-        .from("follows")
-        .select("follower_id")
-        .eq("follower_id", followerId)
-        .eq("followee_id", followeeId)
-        .maybeSingle();
-
-      if (error) throw new Error(`Failed to check follow state: ${error.message}`);
-      return !!data;
+      return checkFollowState(followerId, followeeId);
     },
     initialData: initialState,
     enabled: !!followerId,
