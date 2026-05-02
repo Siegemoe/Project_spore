@@ -1,7 +1,7 @@
 "use server";
 
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { getServerSupabase } from "@/lib/supabaseServer";
+import { auth } from "@/auth";
 import { requireAdminRole, getCurrentAdmin } from "@/lib/admin/auth";
 import { createAuditLog } from "@/lib/admin/audit";
 
@@ -65,22 +65,20 @@ export async function createReport(input: {
   reason: ReportReason;
   details?: string;
 }) {
-  // Use server client with user session context to get authenticated user
-  const supabase = getServerSupabase();
+  // Get reporter's user ID from Auth.js
+  const session = await auth();
   
-  // Get reporter's user ID from auth
-  const { data: { user } } = await supabase.auth.getUser();
-  
-  if (!user) {
+  if (!session?.user?.id) {
     throw new Error("Must be authenticated to report content");
   }
+  const userId = session.user.id;
 
   // Use admin client for database insert
   const admin = getSupabaseAdmin();
   const { data, error } = await admin
     .from("content_reports")
     .insert({
-      reporter_id: user.id,
+      reporter_id: userId,
       content_type: input.content_type,
       content_id: input.content_id,
       reason: input.reason,

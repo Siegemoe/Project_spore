@@ -1,7 +1,7 @@
 "use server";
 
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { getServerSupabase } from "@/lib/supabaseServer";
+import { auth } from "@/auth";
 import { UnauthorizedError } from "@/lib/errors";
 
 /**
@@ -37,18 +37,18 @@ const ROLE_HIERARCHY: Record<AdminRole, number> = {
  */
 export async function getCurrentAdmin(): Promise<AdminUser | null> {
   try {
-    const supabase = getServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
+    const session = await auth();
     
-    if (!user) {
+    if (!session?.user?.id) {
       return null;
     }
+    const userId = session.user.id;
 
     const admin = getSupabaseAdmin();
     const { data, error } = await admin
       .from("admins")
       .select("*")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .is("revoked_at", null)
       .single();
 

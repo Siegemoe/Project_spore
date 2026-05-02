@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
-import { getServerSupabase } from "@/lib/supabaseServer";
+import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { fetchPublicRepos } from "@/features/github/actions";
 import { HeaderV2 } from "@/components/profile/HeaderV2";
@@ -128,35 +128,32 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
 
   if (!user) {
     // 3) Final safety: if the viewer is authenticated, load by their user id
-    const supa = getServerSupabase();
-    const {
-      data: { user: sessionUser },
-    } = await supa.auth.getUser();
+    const session = await auth();
 
-    if (sessionUser?.id) {
+    if (session?.user?.id) {
       const { data: me } = await admin
         .from("users")
         .select("id, handle, display_name, avatar_url, bio, created_at")
-        .eq("id", sessionUser.id)
+        .eq("id", session.user.id)
         .maybeSingle();
 
       if (me) {
         // Backfill handle if still missing
         if (!me.handle) {
           const desired = handle.toLowerCase().replace(/[^a-z0-9_-]/g, "");
-          let newHandle = desired || `user-${String(sessionUser.id).slice(0, 6)}`;
+          let newHandle = desired || `user-${String(session.user.id).slice(0, 6)}`;
           const { data: exists } = await admin
             .from("users")
             .select("id")
             .ilike("handle", newHandle)
             .limit(1);
           if (exists && exists.length > 0) {
-            newHandle = `${newHandle}-${String(sessionUser.id).slice(0, 4)}`;
+            newHandle = `${newHandle}-${String(session.user.id).slice(0, 4)}`;
           }
           await admin
             .from("users")
             .update({ handle: newHandle, is_public: true })
-            .eq("id", sessionUser.id);
+            .eq("id", session.user.id);
           // Redirect to the canonical path we just created
           return redirect(`/u/${newHandle}`);
         }
@@ -219,11 +216,8 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const userPostsNextCursor = userPosts.length > 0 ? userPosts[userPosts.length - 1].id : undefined;
 
   // Determine viewer from server session; allow dev override via ?uid= for testing
-  const supaViewer = getServerSupabase();
-  const {
-    data: { user: viewerUser },
-  } = await supaViewer.auth.getUser();
-  let viewerId: string | undefined = viewerUser?.id ?? undefined;
+  const session = await auth();
+  let viewerId: string | undefined = session?.user?.id ?? undefined;
   if (!viewerId && typeof searchParams?.uid === "string") {
     viewerId = searchParams.uid as string;
   }
