@@ -30,11 +30,13 @@ export async function GET(req: Request) {
       }
     }
 
+    const where: any = { userId };
+    if (cursorDate) {
+      where.createdAt = { lt: cursorDate };
+    }
+
     const comments = await prisma.comment.findMany({
-      where: {
-        userId,
-        ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
-      },
+      where,
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
