@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { requireAdminRole } from "@/lib/admin/auth";
 import { createAuditLog } from "@/lib/admin/audit";
 
@@ -37,19 +37,16 @@ export interface RateLimits {
  * Get system configuration by key
  */
 export async function getSystemConfig(key: string) {
-  const admin = getSupabaseAdmin();
-  
-  const { data, error } = await admin
-    .from("system_config")
-    .select("value")
-    .eq("key", key)
-    .single();
+  const row = await prisma.systemConfig.findUnique({
+    where: { key },
+    select: { value: true },
+  });
 
-  if (error) {
-    throw new Error(`Failed to get config: ${error.message}`);
+  if (!row) {
+    throw new Error(`Config key not found: ${key}`);
   }
 
-  return data.value;
+  return row.value;
 }
 
 /**
@@ -61,22 +58,15 @@ export async function updateSystemConfig(
   value: any
 ) {
   const adminUser = await requireAdminRole("super_admin");
-  const admin = getSupabaseAdmin();
 
-  const { data, error } = await admin
-    .from("system_config")
-    .update({
+  const row = await prisma.systemConfig.update({
+    where: { key },
+    data: {
       value,
-      updated_by: adminUser.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("key", key)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update config: ${error.message}`);
-  }
+      updatedBy: adminUser.id,
+      updatedAt: new Date(),
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -86,7 +76,7 @@ export async function updateSystemConfig(
     details: { new_value: value },
   });
 
-  return data;
+  return row;
 }
 
 /**
@@ -94,7 +84,7 @@ export async function updateSystemConfig(
  */
 export async function getCharacterLimits(): Promise<CharacterLimits> {
   const limits = await getSystemConfig("character_limits");
-  return limits as CharacterLimits;
+  return limits as unknown as CharacterLimits;
 }
 
 /**
@@ -102,7 +92,7 @@ export async function getCharacterLimits(): Promise<CharacterLimits> {
  */
 export async function getModerationThresholds(): Promise<ModerationThresholds> {
   const thresholds = await getSystemConfig("moderation_thresholds");
-  return thresholds as ModerationThresholds;
+  return thresholds as unknown as ModerationThresholds;
 }
 
 /**
@@ -110,7 +100,7 @@ export async function getModerationThresholds(): Promise<ModerationThresholds> {
  */
 export async function getFeatureFlags(): Promise<FeatureFlags> {
   const flags = await getSystemConfig("feature_flags");
-  return flags as FeatureFlags;
+  return flags as unknown as FeatureFlags;
 }
 
 /**
@@ -118,7 +108,7 @@ export async function getFeatureFlags(): Promise<FeatureFlags> {
  */
 export async function getRateLimits(): Promise<RateLimits> {
   const limits = await getSystemConfig("rate_limits");
-  return limits as RateLimits;
+  return limits as unknown as RateLimits;
 }
 
 /**
@@ -134,17 +124,10 @@ export async function isFeatureEnabled(feature: keyof FeatureFlags): Promise<boo
  */
 export async function getAllConfig() {
   await requireAdminRole("super_admin");
-  
-  const admin = getSupabaseAdmin();
-  
-  const { data, error } = await admin
-    .from("system_config")
-    .select("*")
-    .order("category");
 
-  if (error) {
-    throw new Error(`Failed to get all config: ${error.message}`);
-  }
+  const rows = await prisma.systemConfig.findMany({
+    orderBy: { category: "asc" },
+  });
 
-  return data;
+  return rows;
 }

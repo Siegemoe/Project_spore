@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { requireAdminRole } from "@/lib/admin/auth";
 import { createAuditLog } from "@/lib/admin/audit";
 
@@ -49,75 +49,95 @@ export async function searchUsers(params: {
   offset?: number;
 }) {
   await requireAdminRole("support");
-  
-  const admin = getSupabaseAdmin();
-  
-  let query = admin
-    .from("users")
-    .select(`
-      *,
-      moderation:user_moderation_status(*)
-    `, { count: "exact" })
-    .order("created_at", { ascending: false });
+
+  const where: any = {};
 
   // Text search (handle, display_name, email)
   if (params.query) {
-    query = query.or(`handle.ilike.%${params.query}%,display_name.ilike.%${params.query}%,email.ilike.%${params.query}%`);
+    where.OR = [
+      { handle: { contains: params.query, mode: "insensitive" } },
+      { displayName: { contains: params.query, mode: "insensitive" } },
+      { email: { contains: params.query, mode: "insensitive" } },
+    ];
   }
 
   // Email filter
   if (params.email) {
-    query = query.ilike("email", `%${params.email}%`);
+    where.email = { contains: params.email, mode: "insensitive" };
   }
 
   // GitHub connection filter
   if (params.has_github !== undefined) {
     if (params.has_github) {
-      query = query.not("github_username", "is", null);
+      where.githubUsername = { not: null };
     } else {
-      query = query.is("github_username", null);
+      where.githubUsername = null;
     }
   }
 
   // Email verification filter
   if (params.verified !== undefined) {
-    query = query.eq("email_verified", params.verified);
+    where.emailVerified = params.verified ? { not: null } : null;
   }
 
   // Date range filters
   if (params.created_after) {
-    query = query.gte("created_at", params.created_after);
+    where.createdAt = { ...(where.createdAt || {}), gte: new Date(params.created_after) };
   }
   if (params.created_before) {
-    query = query.lte("created_at", params.created_before);
+    where.createdAt = { ...(where.createdAt || {}), lte: new Date(params.created_before) };
   }
 
-  // Pagination
   const limit = params.limit || 50;
   const offset = params.offset || 0;
-  query = query.range(offset, offset + limit - 1);
 
-  const { data, error, count } = await query;
-
-  if (error) {
-    throw new Error(`Failed to search users: ${error.message}`);
-  }
+  const [rows, count] = await Promise.all([
+    prisma.user.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: offset,
+      take: limit,
+      include: {
+        moderationStatus: true,
+      },
+    }),
+    prisma.user.count({ where }),
+  ]);
 
   // Filter by moderation status if requested
-  let filteredData = data;
+  let filteredData = rows;
   if (params.status) {
-    filteredData = data?.filter((user: any) => {
-      const mod = user.moderation;
-      if (params.status === "banned") return mod?.is_banned;
-      if (params.status === "suspended") return mod?.is_suspended;
-      if (params.status === "active") return !mod?.is_banned && !mod?.is_suspended;
+    filteredData = rows.filter((user: any) => {
+      const mod = user.moderationStatus;
+      if (params.status === "banned") return mod?.isBanned;
+      if (params.status === "suspended") return mod?.isSuspended;
+      if (params.status === "active") return !mod?.isBanned && !mod?.isSuspended;
       return true;
     });
   }
 
+  // Transform to snake_case for component compatibility
+  const transformedUsers = filteredData.map((user: any) => ({
+    id: user.id,
+    handle: user.handle,
+    display_name: user.displayName,
+    email: user.email,
+    email_verified: user.emailVerified != null,
+    avatar_url: user.avatarUrl,
+    created_at: user.createdAt.toISOString(),
+    github_username: user.githubHandle,
+    moderation: user.moderationStatus
+      ? {
+          is_suspended: user.moderationStatus.isSuspended,
+          is_banned: user.moderationStatus.isBanned,
+          warning_count: user.moderationStatus.warningCount,
+        }
+      : null,
+  }));
+
   return {
-    users: filteredData || [],
-    total: count || 0,
+    users: transformedUsers,
+    total: count,
   };
 }
 
@@ -126,75 +146,96 @@ export async function searchUsers(params: {
  */
 export async function getUserDetails(userId: string) {
   await requireAdminRole("support");
-  
-  const admin = getSupabaseAdmin();
 
   // Get user profile
-  const { data: user, error: userError } = await admin
-    .from("users")
-    .select("*")
-    .eq("id", userId)
-    .single();
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
 
-  if (userError || !user) {
+  if (!user) {
     throw new Error("User not found");
   }
 
   // Get moderation status
-  const { data: modStatus } = await admin
-    .from("user_moderation_status")
-    .select("*")
-    .eq("user_id", userId)
-    .single();
+  const modStatus = await prisma.userModerationStatus.findUnique({
+    where: { userId },
+  });
 
   // Get stats
   const [postsCount, commentsCount, followersCount, followingCount] = await Promise.all([
-    admin.from("posts").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    admin.from("comments").select("id", { count: "exact", head: true }).eq("user_id", userId),
-    admin.from("follows").select("id", { count: "exact", head: true }).eq("followee_id", userId),
-    admin.from("follows").select("id", { count: "exact", head: true }).eq("follower_id", userId),
+    prisma.post.count({ where: { userId } }),
+    prisma.comment.count({ where: { userId } }),
+    prisma.follow.count({ where: { followeeId: userId } }),
+    prisma.follow.count({ where: { followerId: userId } }),
   ]);
 
   const stats: UserStats = {
-    post_count: postsCount.count || 0,
-    comment_count: commentsCount.count || 0,
-    follower_count: followersCount.count || 0,
-    following_count: followingCount.count || 0,
+    post_count: postsCount,
+    comment_count: commentsCount,
+    follower_count: followersCount,
+    following_count: followingCount,
   };
 
   // Get recent activity (posts & comments)
-  const { data: recentPosts } = await admin
-    .from("posts")
-    .select("id, caption, created_at")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(5);
+  const recentPosts = await prisma.post.findMany({
+    where: { userId },
+    select: { id: true, caption: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
 
-  const { data: recentComments } = await admin
-    .from("comments")
-    .select("id, body, created_at, post_id")
-    .eq("user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(5);
+  const recentComments = await prisma.comment.findMany({
+    where: { userId },
+    select: { id: true, body: true, createdAt: true, postId: true },
+    orderBy: { createdAt: "desc" },
+    take: 5,
+  });
 
   // Get moderation history
-  const { data: moderationHistory } = await admin
-    .from("moderation_actions")
-    .select(`
-      *,
-      admin:admins!moderation_actions_admin_id_fkey(
-        role,
-        user:users!admins_user_id_fkey(handle, display_name)
-      )
-    `)
-    .eq("target_type", "user")
-    .eq("target_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(10);
+  const moderationHistory = await prisma.moderationAction.findMany({
+    where: { targetType: "user", targetId: userId },
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    include: {
+      admin: {
+        select: {
+          role: true,
+          user: { select: { handle: true, displayName: true } },
+        },
+      },
+    },
+  });
+
+  const userProfile: UserProfile = user
+    ? {
+        id: user.id,
+        handle: user.handle,
+        display_name: user.displayName,
+        bio: user.bio,
+        avatar_url: user.avatarUrl,
+        email: user.email,
+        email_verified: user.emailVerified != null,
+        created_at: user.createdAt.toISOString(),
+        updated_at: user.updatedAt.toISOString(),
+        last_sign_in_at: null,
+        github_username: user.githubHandle,
+      }
+    : (null as unknown as UserProfile);
+
+  const moderationInfo: UserModerationInfo | null = modStatus
+    ? {
+        warning_count: modStatus.warningCount,
+        is_suspended: modStatus.isSuspended,
+        suspension_ends_at: modStatus.suspensionEndsAt?.toISOString() ?? null,
+        is_banned: modStatus.isBanned,
+        ban_reason: modStatus.banReason,
+        last_warning_at: modStatus.lastWarningAt?.toISOString() ?? null,
+      }
+    : null;
 
   return {
-    user: user as UserProfile,
-    moderation: modStatus as UserModerationInfo | null,
+    user: userProfile,
+    moderation: moderationInfo,
     stats,
     recent_posts: recentPosts || [],
     recent_comments: recentComments || [],
@@ -211,34 +252,41 @@ export async function adminSuspendUser(
   durationDays: number
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
   const suspensionEnds = new Date();
   suspensionEnds.setDate(suspensionEnds.getDate() + durationDays);
 
   // Update or create moderation status
-  await admin
-    .from("user_moderation_status")
-    .upsert({
-      user_id: userId,
-      is_suspended: true,
-      suspension_ends_at: suspensionEnds.toISOString(),
-      suspended_by: adminUser.id,
-      suspended_at: new Date().toISOString(),
-      suspension_reason: reason,
-    });
+  await prisma.userModerationStatus.upsert({
+    where: { userId },
+    update: {
+      isSuspended: true,
+      suspensionEndsAt: suspensionEnds,
+      suspendedBy: adminUser.id,
+      suspendedAt: new Date(),
+      suspensionReason: reason,
+    },
+    create: {
+      userId,
+      isSuspended: true,
+      suspensionEndsAt: suspensionEnds,
+      suspendedBy: adminUser.id,
+      suspendedAt: new Date(),
+      suspensionReason: reason,
+    },
+  });
 
   // Record action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_suspended",
-      target_type: "user",
-      target_id: userId,
+  await prisma.moderationAction.create({
+    data: {
+      adminId: adminUser.id,
+      actionType: "user_suspended",
+      targetType: "user",
+      targetId: userId,
       reason,
-      duration_days: durationDays,
-    });
+      durationDays,
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -256,26 +304,25 @@ export async function adminSuspendUser(
  */
 export async function adminUnsuspendUser(userId: string, reason: string) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
-  await admin
-    .from("user_moderation_status")
-    .update({
-      is_suspended: false,
-      suspension_ends_at: null,
-    })
-    .eq("user_id", userId);
+  await prisma.userModerationStatus.update({
+    where: { userId },
+    data: {
+      isSuspended: false,
+      suspensionEndsAt: null,
+    },
+  });
 
   // Record action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_unsuspended",
-      target_type: "user",
-      target_id: userId,
+  await prisma.moderationAction.create({
+    data: {
+      adminId: adminUser.id,
+      actionType: "user_unsuspended",
+      targetType: "user",
+      targetId: userId,
       reason,
-    });
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -293,28 +340,34 @@ export async function adminUnsuspendUser(userId: string, reason: string) {
  */
 export async function adminBanUser(userId: string, reason: string) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
-  await admin
-    .from("user_moderation_status")
-    .upsert({
-      user_id: userId,
-      is_banned: true,
-      banned_by: adminUser.id,
-      banned_at: new Date().toISOString(),
-      ban_reason: reason,
-    });
+  await prisma.userModerationStatus.upsert({
+    where: { userId },
+    update: {
+      isBanned: true,
+      bannedBy: adminUser.id,
+      bannedAt: new Date(),
+      banReason: reason,
+    },
+    create: {
+      userId,
+      isBanned: true,
+      bannedBy: adminUser.id,
+      bannedAt: new Date(),
+      banReason: reason,
+    },
+  });
 
   // Record action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_banned",
-      target_type: "user",
-      target_id: userId,
+  await prisma.moderationAction.create({
+    data: {
+      adminId: adminUser.id,
+      actionType: "user_banned",
+      targetType: "user",
+      targetId: userId,
       reason,
-    });
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -332,26 +385,25 @@ export async function adminBanUser(userId: string, reason: string) {
  */
 export async function adminUnbanUser(userId: string, reason: string) {
   const adminUser = await requireAdminRole("super_admin");
-  const admin = getSupabaseAdmin();
 
-  await admin
-    .from("user_moderation_status")
-    .update({
-      is_banned: false,
-      ban_reason: null,
-    })
-    .eq("user_id", userId);
+  await prisma.userModerationStatus.update({
+    where: { userId },
+    data: {
+      isBanned: false,
+      banReason: null,
+    },
+  });
 
   // Record action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_unbanned",
-      target_type: "user",
-      target_id: userId,
+  await prisma.moderationAction.create({
+    data: {
+      adminId: adminUser.id,
+      actionType: "user_unbanned",
+      targetType: "user",
+      targetId: userId,
       reason,
-    });
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -366,48 +418,37 @@ export async function adminUnbanUser(userId: string, reason: string) {
 
 /**
  * Send password reset email
+ * Note: Not applicable for OAuth-only authentication (Auth.js + GitHub)
  */
-export async function adminResetUserPassword(userId: string, email: string) {
+export async function adminResetUserPassword(_userId: string, _email: string) {
   await requireAdminRole("support");
-  const admin = getSupabaseAdmin();
 
-  const { error } = await admin.auth.admin.generateLink({
-    type: "recovery",
-    email,
-  });
-
-  if (error) {
-    throw new Error(`Failed to generate reset link: ${error.message}`);
-  }
-
-  // Audit log
-  await createAuditLog({
-    action: "password_reset_sent",
-    resource_type: "user",
-    resource_id: userId,
-    details: { email },
-  });
-
-  return { success: true };
+  throw new Error(
+    "Password reset is not available for OAuth-only authentication. Users sign in via GitHub."
+  );
 }
 
 /**
  * Get user session information
+ * Note: Auth.js sessions are stored in the database but not directly queryable via an admin API
  */
 export async function getUserSessions(userId: string) {
   await requireAdminRole("support");
-  const admin = getSupabaseAdmin();
 
-  // Note: Supabase doesn't directly expose session info via admin API
-  // This would need to be tracked separately if needed
-  // For now, return basic auth metadata
-  
-  const { data: user } = await admin.auth.admin.getUserById(userId);
+  const sessions = await prisma.session.findMany({
+    where: { userId },
+    select: { id: true, expires: true, sessionToken: true },
+    orderBy: { expires: "desc" },
+  });
 
   return {
-    sessions: [], // Would need custom session tracking
-    last_sign_in_at: user.user?.last_sign_in_at,
-    email_confirmed_at: user.user?.email_confirmed_at,
+    sessions: sessions.map((s) => ({
+      id: s.id,
+      session_token: s.sessionToken,
+      expires_at: s.expires.toISOString(),
+    })),
+    last_sign_in_at: sessions.length > 0 ? sessions[0].expires.toISOString() : null,
+    email_confirmed_at: null,
   };
 }
 
@@ -416,16 +457,9 @@ export async function getUserSessions(userId: string) {
  */
 export async function adminDeleteUser(userId: string, reason: string) {
   const adminUser = await requireAdminRole("super_admin");
-  const admin = getSupabaseAdmin();
 
-  // Delete from auth
-  const { error: authError } = await admin.auth.admin.deleteUser(userId);
-  
-  if (authError) {
-    throw new Error(`Failed to delete user: ${authError.message}`);
-  }
-
-  // User data will cascade delete due to foreign key constraints
+  // Delete user from database (cascades to related records due to foreign key constraints)
+  await prisma.user.delete({ where: { id: userId } });
 
   // Audit log
   await createAuditLog({

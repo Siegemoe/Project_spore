@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { requireAdminRole } from "@/lib/admin/auth";
 
 export interface HealthMetrics {
@@ -25,43 +25,53 @@ export interface ComponentHealth {
  */
 export async function getHealthMetrics(): Promise<HealthMetrics> {
   await requireAdminRole("analyst");
-  
-  const admin = getSupabaseAdmin();
+
+  const now = new Date();
+  const fiveMinAgo = new Date(now.getTime() - 5 * 60 * 1000);
+  const fifteenMinAgo = new Date(now.getTime() - 15 * 60 * 1000);
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const oneHourAgoForMetrics = new Date(now.getTime() - 60 * 60 * 1000);
 
   // Get active users for different time windows
   const [
-    active_5min,
-    active_15min,
-    active_1hr,
+    active5min,
+    active15min,
+    active1hr,
     totalUsers,
     posts24h,
     comments24h,
+    apiMetrics,
   ] = await Promise.all([
-    admin.rpc("count_active_users", { minutes: 5 }),
-    admin.rpc("count_active_users", { minutes: 15 }),
-    admin.rpc("count_active_users", { minutes: 60 }),
-    admin.from("users").select("id", { count: "exact", head: true }),
-    admin.from("posts").select("id", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
-    admin.from("comments").select("id", { count: "exact", head: true }).gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()),
+    prisma.activeUser.count({ where: { lastSeen: { gte: fiveMinAgo } } }),
+    prisma.activeUser.count({ where: { lastSeen: { gte: fifteenMinAgo } } }),
+    prisma.activeUser.count({ where: { lastSeen: { gte: oneHourAgo } } }),
+    prisma.user.count(),
+    prisma.post.count({ where: { createdAt: { gte: twentyFourHoursAgo } } }),
+    prisma.comment.count({ where: { createdAt: { gte: twentyFourHoursAgo } } }),
+    prisma.apiMetric.findMany({
+      where: { createdAt: { gte: oneHourAgoForMetrics } },
+      select: { responseTimeMs: true, statusCode: true },
+    }),
   ]);
 
-  // Get API performance metrics
-  const { data: apiPerf } = await admin.rpc("get_api_performance", { hours: 1 });
-  const avgResponseTime = apiPerf && apiPerf.length > 0 
-    ? Math.round(apiPerf.reduce((acc: number, curr: any) => acc + (curr.avg_response_time || 0), 0) / apiPerf.length)
+  // Calculate avg response time and error rate from raw metrics
+  const avgResponseTime = apiMetrics.length > 0
+    ? Math.round(apiMetrics.reduce((acc, m) => acc + m.responseTimeMs, 0) / apiMetrics.length)
     : 0;
-  
-  const errorRate = apiPerf && apiPerf.length > 0
-    ? apiPerf.reduce((acc: number, curr: any) => acc + (curr.error_rate || 0), 0) / apiPerf.length
+
+  const errorCount = apiMetrics.filter(m => m.statusCode >= 400).length;
+  const errorRate = apiMetrics.length > 0
+    ? errorCount / apiMetrics.length
     : 0;
 
   return {
-    active_users_5min: active_5min.data || 0,
-    active_users_15min: active_15min.data || 0,
-    active_users_1hr: active_1hr.data || 0,
-    total_users: totalUsers.count || 0,
-    total_posts_24h: posts24h.count || 0,
-    total_comments_24h: comments24h.count || 0,
+    active_users_5min: active5min,
+    active_users_15min: active15min,
+    active_users_1hr: active1hr,
+    total_users: totalUsers,
+    total_posts_24h: posts24h,
+    total_comments_24h: comments24h,
     avg_response_time: avgResponseTime,
     error_rate: errorRate,
   };
@@ -72,15 +82,27 @@ export async function getHealthMetrics(): Promise<HealthMetrics> {
  */
 export async function getSystemHealth(): Promise<ComponentHealth[]> {
   await requireAdminRole("analyst");
-  
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin.rpc("get_health_summary");
 
-  if (error) {
-    throw new Error(`Failed to get health summary: ${error.message}`);
-  }
+  // Get latest health check per component
+  const components = ["database", "storage", "auth", "api", "cache"] as const;
 
-  return data || [];
+  const results = await Promise.all(
+    components.map(async (component) => {
+      const row = await prisma.systemHealth.findFirst({
+        where: { component },
+        orderBy: { createdAt: "desc" },
+        select: { status: true, createdAt: true },
+      });
+
+      return {
+        component,
+        status: (row?.status ?? "down") as ComponentHealth["status"],
+        last_check: row?.createdAt.toISOString() ?? new Date().toISOString(),
+      };
+    })
+  );
+
+  return results;
 }
 
 /**
@@ -88,15 +110,42 @@ export async function getSystemHealth(): Promise<ComponentHealth[]> {
  */
 export async function getAPIPerformance(hours: number = 1) {
   await requireAdminRole("analyst");
-  
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin.rpc("get_api_performance", { hours });
 
-  if (error) {
-    throw new Error(`Failed to get API performance: ${error.message}`);
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const metrics = await prisma.apiMetric.findMany({
+    where: { createdAt: { gte: since } },
+    select: { endpoint: true, method: true, responseTimeMs: true, statusCode: true },
+  });
+
+  // Group by endpoint+method
+  const grouped = new Map<string, { endpoint: string; method: string; total_time: number; count: number; errors: number }>();
+
+  for (const m of metrics) {
+    const key = `${m.method} ${m.endpoint}`;
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.total_time += m.responseTimeMs;
+      existing.count += 1;
+      if (m.statusCode >= 400) existing.errors += 1;
+    } else {
+      grouped.set(key, {
+        endpoint: m.endpoint,
+        method: m.method,
+        total_time: m.responseTimeMs,
+        count: 1,
+        errors: m.statusCode >= 400 ? 1 : 0,
+      });
+    }
   }
 
-  return data || [];
+  return Array.from(grouped.values()).map((g) => ({
+    endpoint: g.endpoint,
+    method: g.method,
+    avg_response_time: Math.round(g.total_time / g.count),
+    total_requests: g.count,
+    error_rate: g.count > 0 ? g.errors / g.count : 0,
+  }));
 }
 
 /**
@@ -104,15 +153,35 @@ export async function getAPIPerformance(hours: number = 1) {
  */
 export async function getErrorRateTrends(hours: number = 24) {
   await requireAdminRole("analyst");
-  
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin.rpc("get_error_rate", { hours });
 
-  if (error) {
-    throw new Error(`Failed to get error rate: ${error.message}`);
+  const since = new Date(Date.now() - hours * 60 * 60 * 1000);
+
+  const metrics = await prisma.apiMetric.findMany({
+    where: { createdAt: { gte: since } },
+    select: { createdAt: true, statusCode: true },
+  });
+
+  // Group by hour
+  const hourly = new Map<string, { total: number; errors: number }>();
+
+  for (const m of metrics) {
+    const hourKey = m.createdAt.toISOString().slice(0, 13) + ":00:00Z"; // Round to hour
+    const existing = hourly.get(hourKey);
+    if (existing) {
+      existing.total += 1;
+      if (m.statusCode >= 400) existing.errors += 1;
+    } else {
+      hourly.set(hourKey, { total: 1, errors: m.statusCode >= 400 ? 1 : 0 });
+    }
   }
 
-  return data || [];
+  return Array.from(hourly.entries())
+    .map(([hour, data]) => ({
+      hour,
+      error_rate: data.total > 0 ? data.errors / data.total : 0,
+      total_requests: data.total,
+    }))
+    .sort((a, b) => a.hour.localeCompare(b.hour));
 }
 
 /**
@@ -126,20 +195,18 @@ export async function logAPIMetric(input: {
   user_id?: string;
   error_message?: string;
 }) {
-  const admin = getSupabaseAdmin();
-
-  const { error } = await admin
-    .from("api_metrics")
-    .insert({
-      endpoint: input.endpoint,
-      method: input.method,
-      status_code: input.status_code,
-      response_time_ms: input.response_time_ms,
-      user_id: input.user_id || null,
-      error_message: input.error_message || null,
+  try {
+    await prisma.apiMetric.create({
+      data: {
+        endpoint: input.endpoint,
+        method: input.method as any,
+        statusCode: input.status_code,
+        responseTimeMs: input.response_time_ms,
+        userId: input.user_id || null,
+        errorMessage: input.error_message || null,
+      },
     });
-
-  if (error) {
+  } catch (error) {
     console.error("Failed to log API metric:", error);
   }
 }
@@ -154,19 +221,17 @@ export async function recordHealthCheck(input: {
   error_message?: string;
   details?: Record<string, any>;
 }) {
-  const admin = getSupabaseAdmin();
-
-  const { error } = await admin
-    .from("system_health")
-    .insert({
-      component: input.component,
-      status: input.status,
-      response_time_ms: input.response_time_ms || null,
-      error_message: input.error_message || null,
-      details: input.details || null,
+  try {
+    await prisma.systemHealth.create({
+      data: {
+        component: input.component as any,
+        status: input.status as any,
+        responseTimeMs: input.response_time_ms ?? null,
+        errorMessage: input.error_message ?? null,
+        details: input.details,
+      },
     });
-
-  if (error) {
+  } catch (error) {
     console.error("Failed to record health check:", error);
   }
 }
@@ -175,16 +240,13 @@ export async function recordHealthCheck(input: {
  * Update active user timestamp
  */
 export async function updateActiveUser(userId: string) {
-  const admin = getSupabaseAdmin();
-
-  const { error } = await admin
-    .from("active_users")
-    .upsert({
-      user_id: userId,
-      last_seen: new Date().toISOString(),
+  try {
+    await prisma.activeUser.upsert({
+      where: { userId },
+      update: { lastSeen: new Date() },
+      create: { userId, lastSeen: new Date() },
     });
-
-  if (error) {
+  } catch (error) {
     console.error("Failed to update active user:", error);
   }
 }
@@ -194,21 +256,18 @@ export async function updateActiveUser(userId: string) {
  */
 export async function getDatabaseStats() {
   await requireAdminRole("analyst");
-  
-  const admin = getSupabaseAdmin();
 
-  // Get table sizes
   const [users, posts, comments, follows] = await Promise.all([
-    admin.from("users").select("id", { count: "exact", head: true }),
-    admin.from("posts").select("id", { count: "exact", head: true }),
-    admin.from("comments").select("id", { count: "exact", head: true }),
-    admin.from("follows").select("id", { count: "exact", head: true }),
+    prisma.user.count(),
+    prisma.post.count(),
+    prisma.comment.count(),
+    prisma.follow.count(),
   ]);
 
   return {
-    users_count: users.count || 0,
-    posts_count: posts.count || 0,
-    comments_count: comments.count || 0,
-    follows_count: follows.count || 0,
+    users_count: users,
+    posts_count: posts,
+    comments_count: comments,
+    follows_count: follows,
   };
 }

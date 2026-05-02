@@ -1,32 +1,16 @@
-import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 
 export default async function QuickStats() {
-  // Gracefully handle missing env vars
-  if (!hasSupabaseAdminEnv()) {
-    return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="card p-6">
-          <div className="text-sm text-text-secondary mb-2">⚙️ Configuration Needed</div>
-          <p className="text-xs text-text-secondary">
-            Add SUPABASE_SERVICE_ROLE to environment variables
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  const admin = getSupabaseAdmin();
-
   // Fetch quick stats in parallel with error handling
   const [usersResult, postsResult, commentsResult] = await Promise.allSettled([
-    admin.from("users").select("id", { count: "exact", head: true }),
-    admin.from("posts").select("id", { count: "exact", head: true }),
-    admin.from("comments").select("id", { count: "exact", head: true }),
+    prisma.user.count(),
+    prisma.post.count(),
+    prisma.comment.count(),
   ]);
 
-  const userCount = usersResult.status === "fulfilled" ? usersResult.value.count || 0 : 0;
-  const postCount = postsResult.status === "fulfilled" ? postsResult.value.count || 0 : 0;
-  const commentCount = commentsResult.status === "fulfilled" ? commentsResult.value.count || 0 : 0;
+  const userCount = usersResult.status === "fulfilled" ? usersResult.value : 0;
+  const postCount = postsResult.status === "fulfilled" ? postsResult.value : 0;
+  const commentCount = commentsResult.status === "fulfilled" ? commentsResult.value : 0;
 
   // Calculate growth (placeholder - you'd want to compare with previous period)
   const userGrowth = "+12%"; // TODO: Calculate actual growth

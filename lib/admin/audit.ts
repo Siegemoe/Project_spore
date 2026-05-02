@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { getCurrentAdmin } from "./auth";
 import { headers } from "next/headers";
 
@@ -42,7 +42,7 @@ export interface CreateAuditLogInput {
 export async function createAuditLog(input: CreateAuditLogInput): Promise<void> {
   try {
     const adminUser = await getCurrentAdmin();
-    
+
     if (!adminUser) {
       // eslint-disable-next-line no-console
       console.warn("Attempted to create audit log without admin context");
@@ -51,28 +51,22 @@ export async function createAuditLog(input: CreateAuditLogInput): Promise<void> 
 
     // Get request headers for IP and user agent
     const headersList = headers();
-    const ip_address = headersList.get("x-forwarded-for") || 
-                       headersList.get("x-real-ip") || 
+    const ip_address = headersList.get("x-forwarded-for") ||
+                       headersList.get("x-real-ip") ||
                        null;
     const user_agent = headersList.get("user-agent") || null;
 
-    const admin = getSupabaseAdmin();
-    const { error } = await admin
-      .from("admin_audit_log")
-      .insert({
-        admin_id: adminUser.id,
+    await prisma.adminAuditLog.create({
+      data: {
+        adminId: adminUser.id,
         action: input.action,
-        resource_type: input.resource_type,
-        resource_id: input.resource_id || null,
-        details: input.details || null,
-        ip_address,
-        user_agent,
-      });
-
-    if (error) {
-      // eslint-disable-next-line no-console
-      console.error("Failed to create audit log:", error);
-    }
+        resourceType: input.resource_type,
+        resourceId: input.resource_id || null,
+        details: input.details,
+        ipAddress: ip_address,
+        userAgent: user_agent,
+      },
+    });
   } catch (err) {
     // eslint-disable-next-line no-console
     console.error("Error creating audit log:", err);
@@ -95,60 +89,70 @@ export interface QueryAuditLogsParams {
 
 export async function queryAuditLogs(params: QueryAuditLogsParams = {}) {
   await getCurrentAdmin(); // Require admin access
-  
-  const admin = getSupabaseAdmin();
-  
-  let query = admin
-    .from("admin_audit_log")
-    .select(`
-      *,
-      admin:admins!admin_audit_log_admin_id_fkey(
-        id,
-        role,
-        user:users!admins_user_id_fkey(handle, display_name, avatar_url)
-      )
-    `, { count: "exact" })
-    .order("created_at", { ascending: false });
 
-  // Apply filters
-  if (params.admin_id) {
-    query = query.eq("admin_id", params.admin_id);
+  const where: any = {};
+  if (params.admin_id) where.adminId = params.admin_id;
+  if (params.action) where.action = params.action;
+  if (params.resource_type) where.resourceType = params.resource_type;
+  if (params.resource_id) where.resourceId = params.resource_id;
+  if (params.start_date || params.end_date) {
+    where.createdAt = {};
+    if (params.start_date) where.createdAt.gte = new Date(params.start_date);
+    if (params.end_date) where.createdAt.lte = new Date(params.end_date);
   }
-  
-  if (params.action) {
-    query = query.eq("action", params.action);
-  }
-  
-  if (params.resource_type) {
-    query = query.eq("resource_type", params.resource_type);
-  }
-  
-  if (params.resource_id) {
-    query = query.eq("resource_id", params.resource_id);
-  }
-  
-  if (params.start_date) {
-    query = query.gte("created_at", params.start_date);
-  }
-  
-  if (params.end_date) {
-    query = query.lte("created_at", params.end_date);
-  }
-  
-  // Pagination
+
   const limit = params.limit || 50;
   const offset = params.offset || 0;
-  query = query.range(offset, offset + limit - 1);
 
-  const { data, error, count } = await query;
+  const [rows, count] = await Promise.all([
+    prisma.adminAuditLog.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: offset,
+      take: limit,
+      include: {
+        admin: {
+          select: {
+            id: true,
+            role: true,
+            user: {
+              select: {
+                handle: true,
+                displayName: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    }),
+    prisma.adminAuditLog.count({ where }),
+  ]);
 
-  if (error) {
-    throw new Error(`Failed to query audit logs: ${error.message}`);
-  }
+  const logs: AuditLogEntryWithAdmin[] = rows.map((row) => ({
+    id: row.id,
+    admin_id: row.adminId,
+    action: row.action,
+    resource_type: row.resourceType,
+    resource_id: row.resourceId,
+    details: row.details as Record<string, any> | null,
+    ip_address: row.ipAddress,
+    user_agent: row.userAgent,
+    created_at: row.createdAt.toISOString(),
+    admin: {
+      id: row.admin.id,
+      role: row.admin.role,
+      user: {
+        handle: row.admin.user.handle ?? null,
+        display_name: row.admin.user.displayName ?? null,
+        avatar_url: row.admin.user.avatarUrl ?? null,
+      },
+    },
+  }));
 
   return {
-    logs: data as AuditLogEntryWithAdmin[],
-    total: count || 0,
+    logs,
+    total: count,
   };
 }
 
@@ -160,28 +164,48 @@ export async function getResourceAuditHistory(
   resource_id: string
 ): Promise<AuditLogEntryWithAdmin[]> {
   await getCurrentAdmin(); // Require admin access
-  
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin
-    .from("admin_audit_log")
-    .select(`
-      *,
-      admin:admins!admin_audit_log_admin_id_fkey(
-        id,
-        role,
-        user:users!admins_user_id_fkey(handle, display_name, avatar_url)
-      )
-    `)
-    .eq("resource_type", resource_type)
-    .eq("resource_id", resource_id)
-    .order("created_at", { ascending: false })
-    .limit(100);
 
-  if (error) {
-    throw new Error(`Failed to get resource audit history: ${error.message}`);
-  }
+  const rows = await prisma.adminAuditLog.findMany({
+    where: { resourceType: resource_type, resourceId: resource_id },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: {
+      admin: {
+        select: {
+          id: true,
+          role: true,
+          user: {
+            select: {
+              handle: true,
+              displayName: true,
+              avatarUrl: true,
+            },
+          },
+        },
+      },
+    },
+  });
 
-  return data as AuditLogEntryWithAdmin[];
+  return rows.map((row) => ({
+    id: row.id,
+    admin_id: row.adminId,
+    action: row.action,
+    resource_type: row.resourceType,
+    resource_id: row.resourceId,
+    details: row.details as Record<string, any> | null,
+    ip_address: row.ipAddress,
+    user_agent: row.userAgent,
+    created_at: row.createdAt.toISOString(),
+    admin: {
+      id: row.admin.id,
+      role: row.admin.role,
+      user: {
+        handle: row.admin.user.handle ?? null,
+        display_name: row.admin.user.displayName ?? null,
+        avatar_url: row.admin.user.avatarUrl ?? null,
+      },
+    },
+  }));
 }
 
 /**
@@ -189,41 +213,41 @@ export async function getResourceAuditHistory(
  */
 export async function getAuditLogStats(days: number = 30) {
   await getCurrentAdmin(); // Require admin access
-  
-  const admin = getSupabaseAdmin();
+
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
 
-  const { data, error } = await admin
-    .from("admin_audit_log")
-    .select("action, resource_type, admin_id, created_at")
-    .gte("created_at", startDate.toISOString());
-
-  if (error) {
-    throw new Error(`Failed to get audit log stats: ${error.message}`);
-  }
+  const rows = await prisma.adminAuditLog.findMany({
+    where: { createdAt: { gte: startDate } },
+    select: {
+      action: true,
+      resourceType: true,
+      adminId: true,
+      createdAt: true,
+    },
+  });
 
   // Calculate statistics
   const stats = {
-    total_actions: data.length,
+    total_actions: rows.length,
     actions_by_type: {} as Record<string, number>,
     actions_by_resource: {} as Record<string, number>,
     actions_by_admin: {} as Record<string, number>,
     daily_counts: {} as Record<string, number>,
   };
 
-  data.forEach((log: any) => {
+  rows.forEach((log) => {
     // Count by action type
     stats.actions_by_type[log.action] = (stats.actions_by_type[log.action] || 0) + 1;
-    
+
     // Count by resource type
-    stats.actions_by_resource[log.resource_type] = (stats.actions_by_resource[log.resource_type] || 0) + 1;
-    
+    stats.actions_by_resource[log.resourceType] = (stats.actions_by_resource[log.resourceType] || 0) + 1;
+
     // Count by admin
-    stats.actions_by_admin[log.admin_id] = (stats.actions_by_admin[log.admin_id] || 0) + 1;
-    
+    stats.actions_by_admin[log.adminId] = (stats.actions_by_admin[log.adminId] || 0) + 1;
+
     // Count by day
-    const date = new Date(log.created_at).toISOString().split("T")[0];
+    const date = log.createdAt.toISOString().split("T")[0];
     stats.daily_counts[date] = (stats.daily_counts[date] || 0) + 1;
   });
 
@@ -235,10 +259,10 @@ export async function getAuditLogStats(days: number = 30) {
  */
 export async function exportAuditLogs(params: QueryAuditLogsParams = {}) {
   await getCurrentAdmin(); // Require admin access
-  
+
   // Get all matching logs (no limit for export)
   const { logs } = await queryAuditLogs({ ...params, limit: 10000 });
-  
+
   // Convert to CSV format
   const headers = [
     "Timestamp",
@@ -250,7 +274,7 @@ export async function exportAuditLogs(params: QueryAuditLogsParams = {}) {
     "IP Address",
     "Details"
   ];
-  
+
   const rows = logs.map((log: any) => [
     log.created_at,
     log.admin_id,
@@ -261,12 +285,12 @@ export async function exportAuditLogs(params: QueryAuditLogsParams = {}) {
     log.ip_address || "",
     JSON.stringify(log.details || {})
   ]);
-  
+
   const csv = [
     headers.join(","),
     ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
   ].join("\n");
-  
+
   return csv;
 }
 

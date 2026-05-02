@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { UnauthorizedError } from "@/lib/errors";
 
@@ -18,6 +18,26 @@ export interface AdminUser {
   granted_at: string;
   revoked_at: string | null;
   notes: string | null;
+}
+
+function toAdminUser(row: {
+  id: string;
+  userId: string;
+  role: string;
+  grantedBy: string | null;
+  grantedAt: Date;
+  revokedAt: Date | null;
+  notes: string | null;
+}): AdminUser {
+  return {
+    id: row.id,
+    user_id: row.userId,
+    role: row.role as AdminRole,
+    granted_by: row.grantedBy,
+    granted_at: row.grantedAt.toISOString(),
+    revoked_at: row.revokedAt?.toISOString() ?? null,
+    notes: row.notes,
+  };
 }
 
 /**
@@ -38,25 +58,21 @@ const ROLE_HIERARCHY: Record<AdminRole, number> = {
 export async function getCurrentAdmin(): Promise<AdminUser | null> {
   try {
     const session = await auth();
-    
+
     if (!session?.user?.id) {
       return null;
     }
     const userId = session.user.id;
 
-    const admin = getSupabaseAdmin();
-    const { data, error } = await admin
-      .from("admins")
-      .select("*")
-      .eq("user_id", userId)
-      .is("revoked_at", null)
-      .single();
+    const row = await prisma.admin.findFirst({
+      where: { userId, revokedAt: null },
+    });
 
-    if (error || !data) {
+    if (!row) {
       return null;
     }
 
-    return data as AdminUser;
+    return toAdminUser(row);
   } catch {
     return null;
   }
@@ -68,13 +84,13 @@ export async function getCurrentAdmin(): Promise<AdminUser | null> {
  */
 export async function requireAdmin(): Promise<AdminUser> {
   const adminUser = await getCurrentAdmin();
-  
+
   if (!adminUser) {
     throw new UnauthorizedError(
       "Admin access required. You must be an administrator to perform this action."
     );
   }
-  
+
   return adminUser;
 }
 
@@ -84,16 +100,16 @@ export async function requireAdmin(): Promise<AdminUser> {
  */
 export async function requireAdminRole(requiredRole: AdminRole): Promise<AdminUser> {
   const adminUser = await requireAdmin();
-  
+
   const userLevel = ROLE_HIERARCHY[adminUser.role];
   const requiredLevel = ROLE_HIERARCHY[requiredRole];
-  
+
   if (userLevel < requiredLevel) {
     throw new UnauthorizedError(
       `Insufficient permissions. Required role: ${requiredRole}, your role: ${adminUser.role}`
     );
   }
-  
+
   return adminUser;
 }
 
@@ -110,14 +126,14 @@ export async function isAdmin(): Promise<boolean> {
  */
 export async function hasAdminRole(requiredRole: AdminRole): Promise<boolean> {
   const adminUser = await getCurrentAdmin();
-  
+
   if (!adminUser) {
     return false;
   }
-  
+
   const userLevel = ROLE_HIERARCHY[adminUser.role];
   const requiredLevel = ROLE_HIERARCHY[requiredRole];
-  
+
   return userLevel >= requiredLevel;
 }
 
@@ -126,22 +142,34 @@ export async function hasAdminRole(requiredRole: AdminRole): Promise<boolean> {
  */
 export async function listAdmins() {
   await requireAdminRole("super_admin");
-  
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin
-    .from("admins")
-    .select(`
-      *,
-      user:users!admins_user_id_fkey(id, handle, display_name, avatar_url, email),
-      granted_by_admin:admins!admins_granted_by_fkey(user_id, role)
-    `)
-    .order("granted_at", { ascending: false });
 
-  if (error) {
-    throw new Error(`Failed to list admins: ${error.message}`);
-  }
+  const rows = await prisma.admin.findMany({
+    where: { revokedAt: null },
+    orderBy: { grantedAt: "desc" },
+    include: {
+      user: {
+        select: {
+          id: true,
+          handle: true,
+          displayName: true,
+          avatarUrl: true,
+          email: true,
+        },
+      },
+      grantedByAdmin: {
+        select: {
+          userId: true,
+          role: true,
+        },
+      },
+    },
+  });
 
-  return data;
+  return rows.map((row) => ({
+    ...toAdminUser(row),
+    user: row.user,
+    granted_by_admin: row.grantedByAdmin,
+  }));
 }
 
 /**
@@ -153,37 +181,26 @@ export async function grantAdminRole(
   notes?: string
 ): Promise<AdminUser> {
   const currentAdmin = await requireAdminRole("super_admin");
-  
-  const admin = getSupabaseAdmin();
-  
+
   // Check if user already has an active admin role
-  const { data: existing } = await admin
-    .from("admins")
-    .select("*")
-    .eq("user_id", userId)
-    .is("revoked_at", null)
-    .single();
-  
+  const existing = await prisma.admin.findFirst({
+    where: { userId, revokedAt: null },
+  });
+
   if (existing) {
     throw new Error("User already has an active admin role");
   }
-  
-  const { data, error } = await admin
-    .from("admins")
-    .insert({
-      user_id: userId,
+
+  const row = await prisma.admin.create({
+    data: {
+      userId,
       role,
-      granted_by: currentAdmin.id,
-      notes,
-    })
-    .select()
-    .single();
+      grantedBy: currentAdmin.id,
+      notes: notes ?? null,
+    },
+  });
 
-  if (error) {
-    throw new Error(`Failed to grant admin role: ${error.message}`);
-  }
-
-  return data as AdminUser;
+  return toAdminUser(row);
 }
 
 /**
@@ -191,21 +208,16 @@ export async function grantAdminRole(
  */
 export async function revokeAdminRole(adminId: string): Promise<void> {
   const currentAdmin = await requireAdminRole("super_admin");
-  
+
   // Prevent self-revocation
   if (adminId === currentAdmin.id) {
     throw new Error("Cannot revoke your own admin role");
   }
-  
-  const admin = getSupabaseAdmin();
-  const { error } = await admin
-    .from("admins")
-    .update({ revoked_at: new Date().toISOString() })
-    .eq("id", adminId);
 
-  if (error) {
-    throw new Error(`Failed to revoke admin role: ${error.message}`);
-  }
+  await prisma.admin.update({
+    where: { id: adminId },
+    data: { revokedAt: new Date() },
+  });
 }
 
 /**
@@ -217,25 +229,19 @@ export async function updateAdminRole(
   notes?: string
 ): Promise<void> {
   const currentAdmin = await requireAdminRole("super_admin");
-  
+
   // Prevent self-modification
   if (adminId === currentAdmin.id) {
     throw new Error("Cannot modify your own admin role");
   }
-  
-  const admin = getSupabaseAdmin();
-  const updateData: any = { role: newRole };
-  if (notes !== undefined) {
-    updateData.notes = notes;
-  }
-  
-  const { error } = await admin
-    .from("admins")
-    .update(updateData)
-    .eq("id", adminId)
-    .is("revoked_at", null);
 
-  if (error) {
-    throw new Error(`Failed to update admin role: ${error.message}`);
+  const data: { role: AdminRole; notes?: string | null } = { role: newRole };
+  if (notes !== undefined) {
+    data.notes = notes;
   }
+
+  await prisma.admin.updateMany({
+    where: { id: adminId, revokedAt: null },
+    data,
+  });
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { auth } from "@/auth";
 import { requireAdminRole, getCurrentAdmin } from "@/lib/admin/auth";
 import { createAuditLog } from "@/lib/admin/audit";
@@ -8,7 +8,7 @@ import { createAuditLog } from "@/lib/admin/audit";
 /**
  * Content report types and statuses
  */
-export type ReportReason = 
+export type ReportReason =
   | "spam"
   | "harassment"
   | "hate_speech"
@@ -67,31 +67,38 @@ export async function createReport(input: {
 }) {
   // Get reporter's user ID from Auth.js
   const session = await auth();
-  
+
   if (!session?.user?.id) {
     throw new Error("Must be authenticated to report content");
   }
   const userId = session.user.id;
 
-  // Use admin client for database insert
-  const admin = getSupabaseAdmin();
-  const { data, error } = await admin
-    .from("content_reports")
-    .insert({
-      reporter_id: userId,
-      content_type: input.content_type,
-      content_id: input.content_id,
+  const row = await prisma.contentReport.create({
+    data: {
+      reporterId: userId,
+      contentType: input.content_type,
+      contentId: input.content_id,
       reason: input.reason,
-      details: input.details || null,
-    })
-    .select()
-    .single();
+      details: input.details,
+    },
+  });
 
-  if (error) {
-    throw new Error(`Failed to create report: ${error.message}`);
-  }
-
-  return data as ContentReport;
+  return {
+    id: row.id,
+    reporter_id: row.reporterId,
+    content_type: row.contentType,
+    content_id: row.contentId,
+    reason: row.reason,
+    details: row.details,
+    status: row.status,
+    severity: row.severity,
+    reviewed_by: row.reviewedBy,
+    reviewed_at: row.reviewedAt?.toISOString() ?? null,
+    resolution: row.resolution,
+    resolution_action: row.resolutionAction,
+    created_at: row.createdAt.toISOString(),
+    updated_at: row.updatedAt.toISOString(),
+  } as ContentReport;
 }
 
 /**
@@ -105,49 +112,73 @@ export async function listReports(params: {
   offset?: number;
 } = {}) {
   await requireAdminRole("moderator");
-  
-  const admin = getSupabaseAdmin();
-  
-  let query = admin
-    .from("content_reports")
-    .select(`
-      *,
-      reporter:users!content_reports_reporter_id_fkey(id, handle, display_name, avatar_url),
-      reviewer:admins!content_reports_reviewed_by_fkey(
-        id,
-        role,
-        user:users!admins_user_id_fkey(handle, display_name)
-      )
-    `, { count: "exact" })
-    .order("created_at", { ascending: false });
 
-  // Apply filters
-  if (params.status) {
-    query = query.eq("status", params.status);
-  }
-  
-  if (params.content_type) {
-    query = query.eq("content_type", params.content_type);
-  }
-  
-  if (params.severity) {
-    query = query.eq("severity", params.severity);
-  }
+  const where: any = {};
+  if (params.status) where.status = params.status;
+  if (params.content_type) where.contentType = params.content_type;
+  if (params.severity) where.severity = params.severity;
 
-  // Pagination
   const limit = params.limit || 50;
   const offset = params.offset || 0;
-  query = query.range(offset, offset + limit - 1);
 
-  const { data, error, count } = await query;
-
-  if (error) {
-    throw new Error(`Failed to list reports: ${error.message}`);
-  }
+  const [rows, count] = await Promise.all([
+    prisma.contentReport.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip: offset,
+      take: limit,
+      include: {
+        reporter: {
+          select: { id: true, handle: true, displayName: true, avatarUrl: true },
+        },
+        reviewer: {
+          select: {
+            id: true,
+            role: true,
+            user: { select: { handle: true, displayName: true } },
+          },
+        },
+      },
+    }),
+    prisma.contentReport.count({ where }),
+  ]);
 
   return {
-    reports: data as any[],
-    total: count || 0,
+    reports: rows.map((row) => ({
+      id: row.id,
+      reporter_id: row.reporterId,
+      content_type: row.contentType,
+      content_id: row.contentId,
+      reason: row.reason,
+      details: row.details,
+      status: row.status,
+      severity: row.severity,
+      reviewed_by: row.reviewedBy,
+      reviewed_at: row.reviewedAt?.toISOString() ?? null,
+      resolution: row.resolution,
+      resolution_action: row.resolutionAction,
+      created_at: row.createdAt.toISOString(),
+      updated_at: row.updatedAt.toISOString(),
+      reporter: {
+        id: row.reporter.id,
+        handle: row.reporter.handle,
+        display_name: row.reporter.displayName,
+        avatar_url: row.reporter.avatarUrl,
+      },
+      reviewer: row.reviewer
+        ? {
+            id: row.reviewer.id,
+            role: row.reviewer.role,
+            user: row.reviewer.user
+              ? {
+                  handle: row.reviewer.user.handle,
+                  display_name: row.reviewer.user.displayName,
+                }
+              : undefined,
+          }
+        : undefined,
+    })),
+    total: count,
   };
 }
 
@@ -156,28 +187,28 @@ export async function listReports(params: {
  */
 export async function getReport(reportId: string) {
   await requireAdminRole("moderator");
-  
-  const admin = getSupabaseAdmin();
-  
-  const { data, error } = await admin
-    .from("content_reports")
-    .select(`
-      *,
-      reporter:users!content_reports_reporter_id_fkey(id, handle, display_name, avatar_url, email),
-      reviewer:admins!content_reports_reviewed_by_fkey(
-        id,
-        role,
-        user:users!admins_user_id_fkey(handle, display_name)
-      )
-    `)
-    .eq("id", reportId)
-    .single();
 
-  if (error) {
-    throw new Error(`Failed to get report: ${error.message}`);
+  const row = await prisma.contentReport.findUnique({
+    where: { id: reportId },
+    include: {
+      reporter: {
+        select: { id: true, handle: true, displayName: true, avatarUrl: true, email: true },
+      },
+      reviewer: {
+        select: {
+          id: true,
+          role: true,
+          user: { select: { handle: true, displayName: true } },
+        },
+      },
+    },
+  });
+
+  if (!row) {
+    throw new Error("Report not found");
   }
 
-  return data;
+  return row;
 }
 
 /**
@@ -189,28 +220,21 @@ export async function updateReportStatus(
   resolution?: string
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
   const updateData: any = {
     status,
-    reviewed_by: adminUser.id,
-    reviewed_at: new Date().toISOString(),
+    reviewedBy: adminUser.id,
+    reviewedAt: new Date(),
   };
 
   if (resolution) {
     updateData.resolution = resolution;
   }
 
-  const { data, error } = await admin
-    .from("content_reports")
-    .update(updateData)
-    .eq("id", reportId)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to update report: ${error.message}`);
-  }
+  const row = await prisma.contentReport.update({
+    where: { id: reportId },
+    data: updateData,
+  });
 
   // Audit log
   await createAuditLog({
@@ -220,12 +244,12 @@ export async function updateReportStatus(
     details: { status, resolution },
   });
 
-  return data;
+  return row;
 }
 
 /**
  * Remove content (post or comment)
- * Uses atomic transaction to ensure consistency across all DB operations
+ * Uses Prisma transaction to ensure consistency across all DB operations
  */
 export async function removeContent(
   reportId: string,
@@ -234,34 +258,54 @@ export async function removeContent(
   reason: string
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
-  // Execute atomic transaction via stored procedure
-  // This performs: delete content, insert moderation_action, update content_report, and create audit_log
-  const { data, error } = await admin.rpc('remove_content_transaction', {
-    p_content_type: contentType,
-    p_content_id: contentId,
-    p_admin_id: adminUser.id,
-    p_report_id: reportId,
-    p_reason: reason
+  await prisma.$transaction(async (tx) => {
+    // Delete content
+    if (contentType === "post") {
+      await tx.post.delete({ where: { id: contentId } });
+    } else {
+      await tx.comment.delete({ where: { id: contentId } });
+    }
+
+    // Record moderation action
+    await tx.moderationAction.create({
+      data: {
+        adminId: adminUser.id,
+        actionType: "content_removed",
+        targetType: contentType,
+        targetId: contentId,
+        reason,
+        reportId,
+      },
+    });
+
+    // Update report
+    await tx.contentReport.update({
+      where: { id: reportId },
+      data: {
+        status: "resolved",
+        resolutionAction: "content_removed",
+        resolution: reason,
+        reviewedBy: adminUser.id,
+        reviewedAt: new Date(),
+      },
+    });
   });
 
-  if (error) {
-    // RPC errors include detailed context from the stored procedure
-    throw new Error(`Failed to remove content atomically: ${error.message}`);
-  }
-
-  // Verify we got a success response
-  if (!data || !data.success) {
-    throw new Error('Content removal transaction did not complete successfully');
-  }
+  // Audit log (outside transaction since it's best-effort)
+  await createAuditLog({
+    action: "content_removed",
+    resource_type: contentType,
+    resource_id: contentId,
+    details: { reason, report_id: reportId },
+  });
 
   return { success: true };
 }
 
 /**
  * Warn a user
- * Uses atomic transaction to prevent race conditions when multiple warnings occur concurrently
+ * Uses Prisma transaction to prevent race conditions when multiple warnings occur concurrently
  */
 export async function warnUser(
   reportId: string,
@@ -269,28 +313,58 @@ export async function warnUser(
   reason: string
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
-  // Execute atomic transaction via stored procedure
-  // This performs: increment warning count, insert moderation_action, update content_report, and create audit_log
-  const { data, error } = await admin.rpc('warn_user_transaction', {
-    p_user_id: userId,
-    p_admin_id: adminUser.id,
-    p_report_id: reportId,
-    p_reason: reason
+  const result = await prisma.$transaction(async (tx) => {
+    // Upsert moderation status and increment warning count
+    const modStatus = await tx.userModerationStatus.upsert({
+      where: { userId },
+      update: {
+        warningCount: { increment: 1 },
+        lastWarningAt: new Date(),
+      },
+      create: {
+        userId,
+        warningCount: 1,
+        lastWarningAt: new Date(),
+      },
+    });
+
+    // Record moderation action
+    await tx.moderationAction.create({
+      data: {
+        adminId: adminUser.id,
+        actionType: "user_warned",
+        targetType: "user",
+        targetId: userId,
+        reason,
+        reportId,
+      },
+    });
+
+    // Update report
+    await tx.contentReport.update({
+      where: { id: reportId },
+      data: {
+        status: "resolved",
+        resolutionAction: "warning_sent",
+        resolution: reason,
+        reviewedBy: adminUser.id,
+        reviewedAt: new Date(),
+      },
+    });
+
+    return { warning_count: modStatus.warningCount };
   });
 
-  if (error) {
-    // RPC errors include detailed context from the stored procedure
-    throw new Error(`Failed to warn user atomically: ${error.message}`);
-  }
+  // Audit log
+  await createAuditLog({
+    action: "user_warned",
+    resource_type: "user",
+    resource_id: userId,
+    details: { reason, report_id: reportId },
+  });
 
-  // Verify we got a success response
-  if (!data || !data.success) {
-    throw new Error('User warning transaction did not complete successfully');
-  }
-
-  return { success: true, warning_count: data.warning_count };
+  return { success: true, warning_count: result.warning_count };
 }
 
 /**
@@ -303,52 +377,57 @@ export async function suspendUser(
   durationDays: number
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
   const suspensionEnds = new Date();
   suspensionEnds.setDate(suspensionEnds.getDate() + durationDays);
 
-  const { error } = await admin
-    .from("user_moderation_status")
-    .upsert({
-      user_id: userId,
-      is_suspended: true,
-      suspension_ends_at: suspensionEnds.toISOString(),
-      suspended_by: adminUser.id,
-      suspended_at: new Date().toISOString(),
-      suspension_reason: reason,
-      // Preserve warning_count on conflict, or initialize to 0
-      warning_count: 0,
-    })
-    .select();
-
-  if (error) {
-    throw new Error(`Failed to suspend user: ${error.message}`);
-  }
-  // Record moderation action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_suspended",
-      target_type: "user",
-      target_id: userId,
-      reason,
-      duration_days: durationDays,
-      report_id: reportId,
+  await prisma.$transaction(async (tx) => {
+    // Update or create moderation status
+    await tx.userModerationStatus.upsert({
+      where: { userId },
+      update: {
+        isSuspended: true,
+        suspensionEndsAt: suspensionEnds,
+        suspendedBy: adminUser.id,
+        suspendedAt: new Date(),
+        suspensionReason: reason,
+      },
+      create: {
+        userId,
+        isSuspended: true,
+        suspensionEndsAt: suspensionEnds,
+        suspendedBy: adminUser.id,
+        suspendedAt: new Date(),
+        suspensionReason: reason,
+        warningCount: 0,
+      },
     });
 
-  // Update report
-  await admin
-    .from("content_reports")
-    .update({
-      status: "resolved",
-      resolution_action: "user_suspended",
-      resolution: `${reason} (${durationDays} days)`,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", reportId);
+    // Record moderation action
+    await tx.moderationAction.create({
+      data: {
+        adminId: adminUser.id,
+        actionType: "user_suspended",
+        targetType: "user",
+        targetId: userId,
+        reason,
+        durationDays,
+        reportId,
+      },
+    });
+
+    // Update report
+    await tx.contentReport.update({
+      where: { id: reportId },
+      data: {
+        status: "resolved",
+        resolutionAction: "user_suspended",
+        resolution: `${reason} (${durationDays} days)`,
+        reviewedBy: adminUser.id,
+        reviewedAt: new Date(),
+      },
+    });
+  });
 
   // Audit log
   await createAuditLog({
@@ -370,48 +449,51 @@ export async function banUser(
   reason: string
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
-  // Use atomic upsert to prevent race conditions under concurrent ban requests
-  const { error: upsertError } = await admin
-    .from("user_moderation_status")
-    .upsert({
-      user_id: userId,
-      is_banned: true,
-      banned_by: adminUser.id,
-      banned_at: new Date().toISOString(),
-      ban_reason: reason,
-      warning_count: 0,
-    }, { onConflict: 'user_id' })
-    .select();
-
-  if (upsertError) {
-    throw new Error(`Failed to ban user: ${upsertError.message}`);
-  }
-
-  // Record moderation action
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "user_banned",
-      target_type: "user",
-      target_id: userId,
-      reason,
-      report_id: reportId,
+  await prisma.$transaction(async (tx) => {
+    // Update or create moderation status
+    await tx.userModerationStatus.upsert({
+      where: { userId },
+      update: {
+        isBanned: true,
+        bannedBy: adminUser.id,
+        bannedAt: new Date(),
+        banReason: reason,
+      },
+      create: {
+        userId,
+        isBanned: true,
+        bannedBy: adminUser.id,
+        bannedAt: new Date(),
+        banReason: reason,
+        warningCount: 0,
+      },
     });
 
-  // Update report
-  await admin
-    .from("content_reports")
-    .update({
-      status: "resolved",
-      resolution_action: "user_banned",
-      resolution: reason,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", reportId);
+    // Record moderation action
+    await tx.moderationAction.create({
+      data: {
+        adminId: adminUser.id,
+        actionType: "user_banned",
+        targetType: "user",
+        targetId: userId,
+        reason,
+        reportId,
+      },
+    });
+
+    // Update report
+    await tx.contentReport.update({
+      where: { id: reportId },
+      data: {
+        status: "resolved",
+        resolutionAction: "user_banned",
+        resolution: reason,
+        reviewedBy: adminUser.id,
+        reviewedAt: new Date(),
+      },
+    });
+  });
 
   // Audit log
   await createAuditLog({
@@ -432,39 +514,29 @@ export async function dismissReport(
   reason: string
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
-  const { data, error } = await admin
-    .from("content_reports")
-    .update({
+  const row = await prisma.contentReport.update({
+    where: { id: reportId },
+    data: {
       status: "dismissed",
-      resolution_action: "no_action",
+      resolutionAction: "no_action",
       resolution: reason,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .eq("id", reportId)
-    .select()
-    .single();
-
-  if (error) {
-    throw new Error(`Failed to dismiss report: ${error.message}`);
-  }
+      reviewedBy: adminUser.id,
+      reviewedAt: new Date(),
+    },
+  });
 
   // Record moderation action
-  // Note: report_id is only used to reference the originating report when the target 
-  // is something else (e.g., user, post, comment). When the target is the report itself,
-  // report_id should be null to avoid redundancy with target_id.
-  await admin
-    .from("moderation_actions")
-    .insert({
-      admin_id: adminUser.id,
-      action_type: "report_dismissed",
-      target_type: "report",
-      target_id: reportId,
+  await prisma.moderationAction.create({
+    data: {
+      adminId: adminUser.id,
+      actionType: "report_dismissed",
+      targetType: "report",
+      targetId: reportId,
       reason,
-      report_id: null, // Set to null since target is the report itself
-    });
+      reportId: null,
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -474,7 +546,7 @@ export async function dismissReport(
     details: { reason },
   });
 
-  return data;
+  return row;
 }
 
 /**
@@ -482,20 +554,68 @@ export async function dismissReport(
  */
 export async function getReportStats() {
   await requireAdminRole("moderator");
-  
-  const admin = getSupabaseAdmin();
-  
-  const { data, error } = await admin.rpc("get_report_stats");
 
-  if (error) {
-    throw new Error(`Failed to get report stats: ${error.message}`);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+
+  const [
+    total,
+    pending,
+    reviewing,
+    resolved,
+    dismissed,
+    escalated,
+    resolvedToday,
+    byReason,
+    bySeverity,
+    byContentType,
+    resolvedWithTime,
+  ] = await Promise.all([
+    prisma.contentReport.count(),
+    prisma.contentReport.count({ where: { status: "pending" } }),
+    prisma.contentReport.count({ where: { status: "reviewing" } }),
+    prisma.contentReport.count({ where: { status: "resolved" } }),
+    prisma.contentReport.count({ where: { status: "dismissed" } }),
+    prisma.contentReport.count({ where: { status: "escalated" } }),
+    prisma.contentReport.count({
+      where: { status: "resolved", reviewedAt: { gte: todayStart } },
+    }),
+    prisma.contentReport.groupBy({ by: ["reason"], _count: { reason: true } }),
+    prisma.contentReport.groupBy({ by: ["severity"], _count: { severity: true } }),
+    prisma.contentReport.groupBy({ by: ["contentType"], _count: { contentType: true } }),
+    prisma.contentReport.findMany({
+      where: { status: "resolved", reviewedAt: { not: null } },
+      select: { createdAt: true, reviewedAt: true },
+    }),
+  ]);
+
+  // Calculate avg resolution time in hours
+  let avg_resolution_time_hours: number | null = null;
+  if (resolvedWithTime.length > 0) {
+    const totalHours = resolvedWithTime.reduce((acc, r) => {
+      const created = new Date(r.createdAt).getTime();
+      const reviewed = new Date(r.reviewedAt!).getTime();
+      return acc + (reviewed - created) / (1000 * 60 * 60);
+    }, 0);
+    avg_resolution_time_hours = totalHours / resolvedWithTime.length;
   }
 
-  if (!data || data.length === 0) {
-    throw new Error("No report statistics available");
-  }
-  
-  return data[0];}
+  return {
+    total,
+    total_pending: pending,
+    total_reviewing: reviewing,
+    total_resolved_today: resolvedToday,
+    avg_resolution_time_hours,
+    pending,
+    reviewing,
+    resolved,
+    dismissed,
+    escalated,
+    by_reason: Object.fromEntries(byReason.map((r) => [r.reason, r._count.reason])),
+    by_severity: Object.fromEntries(bySeverity.map((s) => [s.severity ?? "unspecified", s._count.severity])),
+    by_content_type: Object.fromEntries(byContentType.map((c) => [c.contentType, c._count.contentType])),
+  };
+}
 
 /**
  * Bulk action: Update multiple reports
@@ -506,26 +626,20 @@ export async function bulkUpdateReports(
   reason: string
 ) {
   const adminUser = await requireAdminRole("moderator");
-  const admin = getSupabaseAdmin();
 
   const status = action === "dismiss" ? "dismissed" : "escalated";
   const resolutionAction: ResolutionAction = action === "dismiss" ? "no_action" : "escalated_to_legal";
 
-  const { data, error } = await admin
-    .from("content_reports")
-    .update({
+  const result = await prisma.contentReport.updateMany({
+    where: { id: { in: reportIds } },
+    data: {
       status,
       resolution: reason,
-      resolution_action: resolutionAction,
-      reviewed_by: adminUser.id,
-      reviewed_at: new Date().toISOString(),
-    })
-    .in("id", reportIds)
-    .select();
-
-  if (error) {
-    throw new Error(`Failed to bulk update reports: ${error.message}`);
-  }
+      resolutionAction,
+      reviewedBy: adminUser.id,
+      reviewedAt: new Date(),
+    },
+  });
 
   // Audit log
   await createAuditLog({
@@ -535,5 +649,5 @@ export async function bulkUpdateReports(
     details: { action, reason, count: reportIds.length },
   });
 
-  return { updated: data.length };
+  return { updated: result.count };
 }
