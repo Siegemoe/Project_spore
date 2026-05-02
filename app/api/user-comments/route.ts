@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
 
 /**
  * GET /api/user-comments?user={userId}&limit=20&cursor={commentId}
@@ -31,13 +30,11 @@ export async function GET(req: Request) {
       }
     }
 
-    const where: Prisma.CommentWhereInput = { userId };
-    if (cursorDate) {
-      where.createdAt = { lt: cursorDate };
-    }
-
     const comments = await prisma.comment.findMany({
-      where,
+      where: {
+        userId,
+        ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
+      },
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
@@ -45,7 +42,14 @@ export async function GET(req: Request) {
           select: { id: true, userId: true, caption: true },
         },
       },
-    });
+    }) as Array<{
+      id: string;
+      postId: string;
+      userId: string;
+      body: string;
+      createdAt: Date;
+      post: { id: string; userId: string; caption: string | null } | null;
+    }>;
 
     const rows = comments.map((c) => ({
       id: c.id,
