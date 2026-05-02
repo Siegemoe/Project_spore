@@ -1,9 +1,9 @@
 "use server";
 
 import { z } from "zod";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth/session";
-import { BadRequestError, SupabaseError } from "@/lib/errors";
+import { BadRequestError } from "@/lib/errors";
 import { FollowToggle } from "./contract";
 
 export async function toggleFollow(input: z.infer<typeof FollowToggle>) {
@@ -12,51 +12,30 @@ export async function toggleFollow(input: z.infer<typeof FollowToggle>) {
     throw new BadRequestError("Invalid follow payload.", { issues: parsed.error.issues });
   }
 
-  const admin = getSupabaseAdmin();
   const { id: followerId } = await requireUser();
   const { followeeId } = parsed.data;
 
-  const { data: existing, error: selectError } = await admin
-    .from("follows")
-    .select("follower_id, followee_id")
-    .eq("follower_id", followerId)
-    .eq("followee_id", followeeId)
-    .maybeSingle();
-
-  if (selectError) {
-    throw new SupabaseError(`Follow check failed: ${selectError.message}`, {
-      hint: selectError.hint,
-      details: selectError.details,
-    });
-  }
+  const existing = await prisma.follow.findUnique({
+    where: {
+      followerId_followeeId: { followerId, followeeId },
+    },
+  });
 
   if (existing) {
-    const { error: deleteError } = await admin
-      .from("follows")
-      .delete()
-      .eq("follower_id", followerId)
-      .eq("followee_id", followeeId);
-
-    if (deleteError) {
-      throw new SupabaseError(`Unfollow failed: ${deleteError.message}`, {
-        hint: deleteError.hint,
-        details: deleteError.details,
-      });
-    }
+    await prisma.follow.delete({
+      where: {
+        followerId_followeeId: { followerId, followeeId },
+      },
+    });
     return { isFollowing: false };
   }
 
-  const { error: insertError } = await admin.from("follows").insert({
-    follower_id: followerId,
-    followee_id: followeeId,
+  await prisma.follow.create({
+    data: {
+      followerId,
+      followeeId,
+    },
   });
-
-  if (insertError) {
-    throw new SupabaseError(`Follow failed: ${insertError.message}`, {
-      hint: insertError.hint,
-      details: insertError.details,
-    });
-  }
 
   return { isFollowing: true };
 }

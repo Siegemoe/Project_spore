@@ -75,17 +75,17 @@ export default function CommentsClient({ postId, initialComments }: Props) {
         {comments.map((c) => (
           <li key={c.id} className="flex gap-3">
             <Avatar
-              src={c.user?.avatar_url ?? undefined}
-              name={c.user?.display_name || c.user?.handle || "?"}
+              src={c.avatar_url ?? undefined}
+              name={c.display_name || c.handle || "?"}
               size="sm"
             />
             <div className="flex-1">
               <div className="flex items-center gap-2">
                 <Link
-                  href={`/u/${c.user?.handle}` as any}
+                  href={`/u/${c.handle}` as any}
                   className="text-sm font-medium text-text-primary hover:underline"
                 >
-                  @{c.user?.handle}
+                  @{c.handle}
                 </Link>
                 <span className="text-xs text-text-tertiary">
                   {new Date(c.created_at).toLocaleDateString()}
