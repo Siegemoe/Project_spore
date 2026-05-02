@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 
 /**
  * GET /api/user-posts?user={userId}&limit=20&cursor={postId}
@@ -19,39 +19,44 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing user param" }, { status: 400 });
     }
 
-    const admin = getSupabaseAdmin();
-
-    let cutoff: string | undefined = undefined;
+    // Resolve cursor date
+    let cursorDate: Date | undefined;
     if (cursor) {
-      const { data: cur, error: cErr } = await admin
-        .from("posts")
-        .select("created_at")
-        .eq("id", cursor)
-        .limit(1)
-        .maybeSingle();
-      if (cErr) {
-        return NextResponse.json({ error: cErr.message }, { status: 500 });
+      const cursorPost = await prisma.post.findUnique({
+        where: { id: cursor },
+        select: { createdAt: true },
+      });
+      if (cursorPost) {
+        cursorDate = cursorPost.createdAt;
       }
-      cutoff = cur?.created_at as string | undefined;
     }
 
-    let q = admin
-      .from("posts")
-      .select("id,user_id,caption,media_url,media_type,created_at")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const posts = await prisma.post.findMany({
+      where: {
+        userId,
+        ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: {
+        id: true,
+        userId: true,
+        caption: true,
+        mediaUrl: true,
+        mediaType: true,
+        createdAt: true,
+      },
+    });
 
-    if (cutoff) {
-      q = q.lt("created_at", cutoff);
-    }
+    const rows = posts.map((p) => ({
+      id: p.id,
+      user_id: p.userId,
+      caption: p.caption,
+      media_url: p.mediaUrl,
+      media_type: p.mediaType,
+      created_at: p.createdAt.toISOString(),
+    }));
 
-    const { data, error } = await q;
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    const rows = data ?? [];
     const nextCursor = rows.length > 0 ? rows[rows.length - 1].id : undefined;
     return NextResponse.json({ items: rows, nextCursor }, { status: 200 });
   } catch (e: any) {

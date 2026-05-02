@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 
 /**
  * GET /api/user-comments?user={userId}&limit=20&cursor={commentId}
@@ -18,61 +18,49 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: "Missing user param" }, { status: 400 });
     }
 
-    const admin = getSupabaseAdmin();
-
-    let cutoff: string | undefined;
+    // Resolve cursor date
+    let cursorDate: Date | undefined;
     if (cursor) {
-      const { data: cur, error: cErr } = await admin
-        .from("comments")
-        .select("created_at")
-        .eq("id", cursor)
-        .limit(1)
-        .maybeSingle();
-      if (cErr) return NextResponse.json({ error: cErr.message }, { status: 500 });
-      cutoff = cur?.created_at as string | undefined;
-    }
-
-    let q = admin
-      .from("comments")
-      .select("id,post_id,user_id,body,created_at")
-      .eq("user_id", userId)
-      .order("created_at", { ascending: false })
-      .limit(limit);
-
-    if (cutoff) {
-      q = q.lt("created_at", cutoff);
-    }
-
-    const { data, error } = await q;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-    const rows = data ?? [];
-    const postIds = Array.from(new Set(rows.map((r: any) => r.post_id))).filter(Boolean) as string[];
-
-    let postsById: Record<string, { id: string; user_id: string; caption: string | null }> = {};
-    if (postIds.length > 0) {
-      const { data: posts, error: pErr } = await admin
-        .from("posts")
-        .select("id,user_id,caption")
-        .in("id", postIds);
-      if (!pErr) {
-        for (const p of posts ?? []) {
-          postsById[p.id as string] = {
-            id: p.id as string,
-            user_id: p.user_id as string,
-            caption: (p as any).caption ?? null,
-          };
-        }
+      const cursorComment = await prisma.comment.findUnique({
+        where: { id: cursor },
+        select: { createdAt: true },
+      });
+      if (cursorComment) {
+        cursorDate = cursorComment.createdAt;
       }
     }
 
-    const enriched = rows.map((c: any) => ({
-      ...c,
-      post: postsById[c.post_id] || null,
+    const comments = await prisma.comment.findMany({
+      where: {
+        userId,
+        ...(cursorDate ? { createdAt: { lt: cursorDate } } : {}),
+      },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      include: {
+        post: {
+          select: { id: true, userId: true, caption: true },
+        },
+      },
+    });
+
+    const rows = comments.map((c) => ({
+      id: c.id,
+      post_id: c.postId,
+      user_id: c.userId,
+      body: c.body,
+      created_at: c.createdAt.toISOString(),
+      post: c.post
+        ? {
+            id: c.post.id,
+            user_id: c.post.userId,
+            caption: c.post.caption,
+          }
+        : null,
     }));
 
     const nextCursor = rows.length > 0 ? rows[rows.length - 1].id : undefined;
-    return NextResponse.json({ items: enriched, nextCursor }, { status: 200 });
+    return NextResponse.json({ items: rows, nextCursor }, { status: 200 });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message || "unknown_error" }, { status: 500 });
   }
