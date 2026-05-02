@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 
 export type FeedRow = {
   id: string;
@@ -13,20 +13,28 @@ export type FeedRow = {
  * Minimal feed query (newest first). Personalization will be added in a follow-up PR.
  */
 export async function feedQuery(limit: number, createdBefore?: string) {
-  const admin = getSupabaseAdmin();
-  let q = admin
-    .from("posts")
-    .select("id,user_id,caption,media_url,media_type,created_at")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+  const posts = await prisma.post.findMany({
+    where: createdBefore
+      ? { createdAt: { lt: new Date(createdBefore) } }
+      : undefined,
+    orderBy: { createdAt: "desc" },
+    take: limit,
+    select: {
+      id: true,
+      userId: true,
+      caption: true,
+      mediaUrl: true,
+      mediaType: true,
+      createdAt: true,
+    },
+  });
 
-  if (createdBefore) {
-    q = q.lt("created_at", createdBefore);
-  }
-
-  const { data, error } = await q;
-  if (error) {
-    throw new Error(`feedQuery failed: ${error.message}`);
-  }
-  return (data ?? []) as FeedRow[];
+  return posts.map((p) => ({
+    id: p.id,
+    user_id: p.userId,
+    caption: p.caption,
+    media_url: p.mediaUrl,
+    media_type: p.mediaType,
+    created_at: p.createdAt.toISOString(),
+  }));
 }
