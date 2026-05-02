@@ -1,40 +1,18 @@
 export const dynamic = "force-dynamic";
 
-import { getSupabaseAdmin, hasSupabaseAdminEnv } from "@/lib/supabaseAdmin";
+import { prisma } from "@/lib/prisma";
 import { Avatar } from "@/components/ui/Avatar";
 
 type PageProps = { params: { handle: string } };
 
 export default async function FollowersPage({ params }: PageProps) {
-  const admin = getSupabaseAdmin();
   const handle = decodeURIComponent(params.handle).replace(/^@/, "");
 
-  if (!hasSupabaseAdminEnv()) {
-    return (
-      <div className="container py-10 space-y-4 max-w-3xl">
-        <h1 className="text-2xl font-semibold text-text-primary">@{handle} • Followers</h1>
-        <p className="text-sm text-text-secondary">
-          Supabase environment variables are not set in this environment, so followers cannot be loaded.
-        </p>
-      </div>
-    );
-  }
-
   // Resolve user id by handle
-  const { data: user, error: uErr } = await admin
-    .from("users")
-    .select("id, handle, display_name")
-    .ilike("handle", handle)
-    .maybeSingle();
-
-  if (uErr) {
-    return (
-      <div className="container py-10 max-w-3xl">
-        <h1 className="text-2xl font-semibold text-text-primary">Followers</h1>
-        <p className="text-sm text-text-secondary">Unable to load followers for @{handle}.</p>
-      </div>
-    );
-  }
+  const user = await prisma.user.findFirst({
+    where: { handle: { equals: handle, mode: "insensitive" } },
+    select: { id: true, handle: true, displayName: true },
+  });
 
   if (!user) {
     return (
@@ -44,38 +22,15 @@ export default async function FollowersPage({ params }: PageProps) {
     );
   }
 
-  // List followers -> join follows(follower_id -> users.id)
-  const { data: rows, error: fErr } = await admin
-    .from("follows")
-    .select("follower_id")
-    .eq("followee_id", user.id);
-
-  if (fErr) {
-    return (
-      <div className="container py-10 space-y-4 max-w-3xl">
-        <h1 className="text-2xl font-semibold text-text-primary">@{user.handle} • Followers</h1>
-        <p className="text-sm text-text-secondary">We couldn’t load followers right now. Please try again.</p>
-      </div>
-    );
-  }
-
-  const followerIds = Array.from(new Set((rows ?? []).map((r: any) => r.follower_id))).filter(Boolean);
-  let followers: Array<{ id: string; handle: string | null; display_name: string | null; avatar_url: string | null }> = [];
-
-  if (followerIds.length > 0) {
-    const { data: users } = await admin
-      .from("users")
-      .select("id, handle, display_name, avatar_url")
-      .in("id", followerIds);
-
-    followers =
-      (users ?? []).map((u: any) => ({
-        id: u.id as string,
-        handle: (u.handle ?? null) as string | null,
-        display_name: (u.display_name ?? null) as string | null,
-        avatar_url: (u.avatar_url ?? null) as string | null
-      })) ?? [];
-  }
+  // List followers with user details
+  const followers = await prisma.follow.findMany({
+    where: { followeeId: user.id },
+    select: {
+      follower: {
+        select: { id: true, handle: true, displayName: true, avatarUrl: true },
+      },
+    },
+  });
 
   return (
     <div className="container py-10 space-y-4 max-w-3xl">
@@ -86,7 +41,7 @@ export default async function FollowersPage({ params }: PageProps) {
           onClick={() => {
             if (typeof window !== "undefined") {
               if (window.history.length > 1) window.history.back();
-              else window.location.href = `/u/${encodeURIComponent(user.handle)}`;
+              else window.location.href = `/u/${encodeURIComponent(user.handle!)}`;
             }
           }}
           className="rounded-md border border-border-subtle px-3 py-1.5 text-sm hover:bg-[rgb(var(--surface-muted))]"
@@ -101,15 +56,19 @@ export default async function FollowersPage({ params }: PageProps) {
       ) : (
         <ul className="space-y-2">
           {followers.map((f) => (
-            <li key={f.id} className="card p-3 sm:p-4">
-              <a href={`/u/${encodeURIComponent(f.handle ?? "")}`} className="flex items-center gap-3">
-                <Avatar src={f.avatar_url ?? undefined} name={f.display_name || f.handle || "@"} size="sm" />
+            <li key={f.follower.id} className="card p-3 sm:p-4">
+              <a href={`/u/${encodeURIComponent(f.follower.handle ?? "")}`} className="flex items-center gap-3">
+                <Avatar
+                  src={f.follower.avatarUrl ?? undefined}
+                  name={f.follower.displayName || f.follower.handle || "@"}
+                  size="sm"
+                />
                 <div className="min-w-0">
                   <div className="text-sm font-medium text-text-primary truncate">
-                    {f.display_name || f.handle || f.id}
+                    {f.follower.displayName || f.follower.handle || f.follower.id}
                   </div>
-                  {f.handle ? (
-                    <div className="text-xs text-text-secondary truncate">@{f.handle}</div>
+                  {f.follower.handle ? (
+                    <div className="text-xs text-text-secondary truncate">@{f.follower.handle}</div>
                   ) : null}
                 </div>
               </a>
