@@ -28,6 +28,7 @@ export function useComments({ postId, initialData, enabled = true }: UseComments
     enabled,
     staleTime: 30_000,
     refetchOnWindowFocus: false,
+    refetchInterval: 30_000,
   });
 }
 

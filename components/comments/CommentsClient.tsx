@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
 import { useComments, useCreateComment, Comment } from "@/features/comments/hooks";
 import { Avatar } from "@/components/ui/Avatar";
 
@@ -23,27 +22,6 @@ export default function CommentsClient({ postId, initialComments }: Props) {
   const [text, setText] = useState("");
   const viewerId = session?.user?.id;
   const [localError, setLocalError] = useState<string | null>(null);
-
-  // Realtime subscriptions for new comments
-  useEffect(() => {
-    const channel = (supabase as any)
-      .channel(`comments-${postId}`)
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "comments" },
-        (payload: any) => {
-          const row = payload.new as Comment;
-          if (row.post_id !== postId) return;
-          // React Query will handle the update via refetch/invalidation
-          // For now, we let the optimistic update handle it
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [postId]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();

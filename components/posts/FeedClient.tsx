@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import { useFeed, FeedItem, FeedResponse } from "@/features/posts/hooks";
+import { useEffect, useRef } from "react";
+import { useFeed, FeedResponse } from "@/features/posts/hooks";
 import PostCard, { PostCardSkeleton } from "./PostCard";
 
 type Props = {
@@ -17,31 +16,6 @@ export default function FeedClient({ initialPage, initialCursor, viewerId }: Pro
     initialCursor,
     viewerId,
   });
-
-  // When new posts arrive via realtime while user is browsing, stage them behind a banner
-  const [staged, setStaged] = useState<FeedItem[]>([]);
-  const stagedCount = staged.length;
-
-  // Realtime prepend: stage new items to avoid content shift; user can tap "New posts"
-  useEffect(() => {
-    const handleRealtimeInsert = (payload: unknown) => {
-      if (payload && typeof payload === "object" && "new" in payload) {
-        const item = (payload as { new: unknown }).new;
-        if (item && typeof item === "object") {
-          setStaged((prev) => [item as FeedItem, ...prev]);
-        }
-      }
-    };
-
-    const channel = (supabase as any)
-      .channel("posts-insert")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "posts" }, handleRealtimeInsert)
-      .subscribe();
-    
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
 
   // Infinite scroll via IntersectionObserver
   const sentinelRef = useRef<HTMLDivElement | null>(null);
@@ -66,28 +40,9 @@ export default function FeedClient({ initialPage, initialCursor, viewerId }: Pro
 
   // Flatten all pages into a single array
   const allItems = data?.pages.flatMap((page) => page.items) ?? [];
-  
-  // Merge staged items with fetched items
-  const displayItems = stagedCount > 0 ? [...staged, ...allItems] : allItems;
 
   return (
     <div className="space-y-4">
-      {/* staged banner */}
-      {stagedCount > 0 ? (
-        <div className="sticky top-0 z-10">
-          <button
-            type="button"
-            onClick={() => {
-              // Clear staged items - they're already in displayItems
-              setStaged([]);
-            }}
-            className="mx-auto block w-full max-w-2xl rounded-md border border-border-subtle bg-[rgb(var(--surface))] px-3 py-2 text-sm font-medium text-text-primary shadow-soft hover:bg-[rgb(var(--surface-muted))]"
-          >
-            {stagedCount} new {stagedCount === 1 ? "post" : "posts"} — tap to refresh
-          </button>
-        </div>
-      ) : null}
-
       {isError ? (
         <div role="alert" className="mx-auto w-full max-w-2xl rounded-md border border-red-300 bg-red-50 text-red-800 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
@@ -104,11 +59,11 @@ export default function FeedClient({ initialPage, initialCursor, viewerId }: Pro
         </div>
       ) : null}
 
-      {displayItems.length === 0 && !isFetchingNextPage && (
+      {allItems.length === 0 && !isFetchingNextPage && (
         <p className="text-sm text-text-secondary">No posts yet. Follow someone or share your first post.</p>
       )}
 
-      {displayItems.map((it) => (
+      {allItems.map((it) => (
         <PostCard key={it.id} {...it} />
       ))}
 
