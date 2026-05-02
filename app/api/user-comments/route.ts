@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 /**
  * GET /api/user-comments?user={userId}&limit=20&cursor={commentId}
@@ -30,7 +31,7 @@ export async function GET(req: Request) {
       }
     }
 
-    const where: any = { userId };
+    const where: Prisma.CommentWhereInput = { userId };
     if (cursorDate) {
       where.createdAt = { lt: cursorDate };
     }
