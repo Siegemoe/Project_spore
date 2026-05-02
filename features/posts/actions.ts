@@ -102,16 +102,8 @@ export async function listFeed(input: ListFeedOptions) {
   const { cursor, limit } = parsed.data;
   const viewerId = input.viewerId;
   
-  // Use admin client for feed queries (needed for RLS bypass on public feed)
-  // Falls back to server client if service role not available
-  let client;
-  try {
-    client = getSupabaseAdmin();
-  } catch {
-    // Fallback to regular server client if admin not configured
-    const { getServerSupabase } = await import("@/lib/supabaseServer");
-    client = getServerSupabase();
-  }
+  // Use admin client for feed queries (bypasses RLS)
+  const client = getSupabaseAdmin();
 
   let allowedAuthors: string[] | null = null;
   if (viewerId) {
