@@ -6,7 +6,15 @@ import { prisma } from "@/lib/prisma";
 const ALICE_ID = "11111111-1111-1111-1111-111111111111";
 const BOB_ID = "22222222-2222-2222-2222-222222222222";
 
-async function getSeedUsers() {
+type SeedUser = {
+  id: string;
+  handle: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  bio: string | null;
+};
+
+async function getSeedUsers(): Promise<SeedUser[]> {
   try {
     return await prisma.user.findMany({
       where: { id: { in: [ALICE_ID, BOB_ID] } },
@@ -20,7 +28,7 @@ async function getSeedUsers() {
     });
   } catch {
     // Build-safe fallback
-    return [] as Array<{ id: string; handle: string | null; displayName: string | null; avatarUrl: string | null; bio: string | null }>;
+    return [];
   }
 }
 
