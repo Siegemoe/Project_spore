@@ -158,7 +158,14 @@ export default async function ProfilePage({ params, searchParams }: PageProps) {
   const contributions = await getContributionCounts(user.id);
 
   // Initial page of this user's posts (newest first)
-  const posts = await prisma.post.findMany({
+  const posts: Array<{
+    id: string;
+    userId: string;
+    caption: string | null;
+    mediaUrl: string | null;
+    mediaType: string | null;
+    createdAt: Date;
+  }> = await prisma.post.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
     take: 20,

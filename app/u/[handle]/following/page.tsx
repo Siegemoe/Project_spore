@@ -5,6 +5,15 @@ import { Avatar } from "@/components/ui/Avatar";
 
 type PageProps = { params: { handle: string } };
 
+type FollowingItem = {
+  followee: {
+    id: string;
+    handle: string | null;
+    displayName: string | null;
+    avatarUrl: string | null;
+  };
+};
+
 export default async function FollowingPage({ params }: PageProps) {
   const handle = decodeURIComponent(params.handle).replace(/^@/, "");
 
@@ -23,7 +32,7 @@ export default async function FollowingPage({ params }: PageProps) {
   }
 
   // List following with user details
-  const following = await prisma.follow.findMany({
+  const following: FollowingItem[] = await prisma.follow.findMany({
     where: { followerId: user.id },
     select: {
       followee: {
