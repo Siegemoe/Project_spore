@@ -20,7 +20,7 @@ async function getSeedUsers() {
     });
   } catch {
     // Build-safe fallback
-    return [];
+    return [] as Array<{ id: string; handle: string | null; displayName: string | null; avatarUrl: string | null; bio: string | null }>;
   }
 }
 
